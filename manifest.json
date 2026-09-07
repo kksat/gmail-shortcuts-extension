@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Gmail Snooze Shortcuts",
+  "version": "1.0.0",
+  "description": "Fast, non-invasive keyboard shortcuts to snooze Gmail emails (b then t, w, or m).",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
