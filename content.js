@@ -3,7 +3,7 @@
  * Fast, lightweight, and configurable keyboard shortcuts for Gmail.
  *
  * Features:
- *   - Auto-activates in Snooze menu (dynamic slots 1, 2, 3, unsnooze u, named t, w, m, d)
+ *   - Auto-activates in Snooze menu (dynamic slots 1, 2, 3..., unsnooze u, named t, w, m, d)
  *   - Multi-line HUD with dynamic options on a separate line
  *   - Hover-protected hint panel (never disappears while mouse is on it; clickable items)
  *   - Email list navigation: ]] for Next Page, [[ for Previous Page (only in list view)
@@ -190,17 +190,54 @@
   }
 
   /**
+   * Extract unique, top-level menu items from a Gmail menu.
+   * Strips any nested child elements (e.g. goog-menuitem-content / J-N-Jz)
+   * and de-duplicates by text content to prevent duplicate entries.
+   */
+  function getTopLevelMenuItems(menu) {
+    const rawItems = Array.from(
+      menu.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')
+    ).filter(el => el.offsetParent !== null);
+
+    // 1. Only keep top-level items (filter out elements contained inside another item)
+    const topLevel = rawItems.filter(item => {
+      return !rawItems.some(other => other !== item && other.contains(item));
+    });
+
+    // 2. De-duplicate by normalized text content
+    const seenTexts = new Set();
+    const uniqueItems = [];
+
+    for (const item of topLevel) {
+      const fullText = (item.innerText || '').trim();
+      if (!fullText) continue;
+
+      const normText = fullText.replace(/\s+/g, ' ').toLowerCase();
+      if (seenTexts.has(normText)) {
+        continue;
+      }
+      seenTexts.add(normText);
+      uniqueItems.push(item);
+    }
+
+    return uniqueItems;
+  }
+
+  /**
    * Find any currently visible Snooze popup menu in Gmail's DOM.
    */
   function getVisibleSnoozeMenu() {
-    const menus = Array.from(
-      document.querySelectorAll('div[role="menu"], div[class*="J-M"]')
+    const rawMenus = Array.from(
+      document.querySelectorAll('div[role="menu"]')
     ).filter(m => m.offsetParent !== null);
 
+    // Filter out parent menus if nested
+    const menus = rawMenus.filter(
+      m => !rawMenus.some(other => other !== m && m.contains(other))
+    );
+
     for (const menu of menus) {
-      const items = Array.from(
-        menu.querySelectorAll('div[role="menuitem"], div[role="menuitemradio"], div[class*="J-N"]')
-      ).filter(item => item.offsetParent !== null);
+      const items = getTopLevelMenuItems(menu);
 
       if (items.length >= 2) {
         const text = menu.innerText.toLowerCase();
@@ -221,10 +258,10 @@
   }
 
   /**
-   * Categorize items in the Snooze menu into:
+   * Categorize unique items in the Snooze menu into:
    * - unsnoozeItem (if email is already snoozed)
    * - pickDateItem (custom date & time picker)
-   * - dynamicItems (suggested time presets: Tomorrow, Next week, etc.)
+   * - dynamicItems (suggested time presets: Tomorrow, Later today, Next week, etc.)
    */
   function parseSnoozeMenuItems(items) {
     let unsnoozeItem = null;
@@ -234,9 +271,21 @@
     for (const item of items) {
       const text = (item.innerText + ' ' + (item.getAttribute('aria-label') || '')).toLowerCase();
 
-      if (text.includes('unsnooze') || text.includes('un-snooze') || text.includes('вернуть во входящие') || text.includes('desposponer')) {
+      if (
+        text.includes('unsnooze') ||
+        text.includes('un-snooze') ||
+        text.includes('вернуть во входящие') ||
+        text.includes('desposponer') ||
+        text.includes('zurückstellen aufheben')
+      ) {
         unsnoozeItem = item;
-      } else if (text.includes('select date') || text.includes('pick date') || text.includes('choose date') || text.includes('выбрать дату')) {
+      } else if (
+        text.includes('select date') ||
+        text.includes('pick date') ||
+        text.includes('choose date') ||
+        text.includes('выбрать дату') ||
+        text.includes('datum und uhrzeit')
+      ) {
         pickDateItem = item;
       } else {
         dynamicItems.push(item);
@@ -271,7 +320,7 @@
 
   /**
    * Build the floating HUD message with dynamic options on a separate line.
-   * Items are given data-shortcut-action attributes so they are directly clickable.
+   * Every dynamic option is assigned its own numeric shortcut [1], [2], [3], etc.
    */
   function getHUDMessage(parsed) {
     const dynamicParts = [];
@@ -398,7 +447,8 @@
           const idx = parseInt(actionType.replace('dynamic-', ''), 10);
           if (parsed.dynamicItems[idx]) {
             const item = parsed.dynamicItems[idx];
-            clickMenuItem(item, item.innerText.split('\n')[0].trim());
+            const title = (item.innerText || '').split('\n')[0].trim();
+            clickMenuItem(item, title);
           }
         } else if (actionType === 'pick-date' && parsed.pickDateItem) {
           clickMenuItem(parsed.pickDateItem, 'Select date & time');
@@ -499,7 +549,7 @@
     }
 
     // =======================================================================
-    // Context 2: Snooze Menu Open (Dynamic 1, 2, 3, Unsnooze u, Named t, w, m, d)
+    // Context 2: Snooze Menu Open (Dynamic 1, 2, 3..., Unsnooze u, Named t, w, m, d)
     // =======================================================================
     if (!menuData) return;
 
@@ -517,13 +567,14 @@
       return;
     }
 
-    // 2. Dynamic options 1, 2, 3 (self-evident numeric keys)
+    // 2. Dynamic options: exactly maps digit key (1, 2, 3...) to parsed.dynamicItems
     const digitIndex = parseInt(key, 10) - 1;
-    if (!isNaN(digitIndex) && digitIndex >= 0 && parsed.dynamicItems[digitIndex]) {
+    if (!isNaN(digitIndex) && digitIndex >= 0 && digitIndex < parsed.dynamicItems.length) {
       event.preventDefault();
       event.stopPropagation();
       const target = parsed.dynamicItems[digitIndex];
-      clickMenuItem(target, target.innerText.split('\n')[0].trim());
+      const title = (target.innerText || '').split('\n')[0].trim();
+      clickMenuItem(target, title);
       return;
     }
 
