@@ -5,9 +5,6 @@
 'use strict';
 
 const DEFAULT_CONFIG = {
-  keyOpt1: '1',
-  keyOpt2: '2',
-  keyOpt3: '3',
   keyUnsnooze: 'u',
   keyTomorrow: 't',
   keyNextWeek: 'w',
@@ -23,9 +20,6 @@ const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
 const enablePaginationInput = document.getElementById('enablePagination');
-const keyOpt1Input = document.getElementById('keyOpt1');
-const keyOpt2Input = document.getElementById('keyOpt2');
-const keyOpt3Input = document.getElementById('keyOpt3');
 const keyUnsnoozeInput = document.getElementById('keyUnsnooze');
 const keyTomorrowInput = document.getElementById('keyTomorrow');
 const keyNextWeekInput = document.getElementById('keyNextWeek');
@@ -35,9 +29,6 @@ const showHUDInput = document.getElementById('showHUD');
 const hudTimeoutSecInput = document.getElementById('hudTimeoutSec');
 
 const keyInputs = [
-  keyOpt1Input,
-  keyOpt2Input,
-  keyOpt3Input,
   keyUnsnoozeInput,
   keyTomorrowInput,
   keyNextWeekInput,
@@ -79,9 +70,6 @@ function restoreOptions() {
 
   storage.get(DEFAULT_CONFIG, (items) => {
     enablePaginationInput.checked = items.enablePagination ?? DEFAULT_CONFIG.enablePagination;
-    keyOpt1Input.value = items.keyOpt1 ?? DEFAULT_CONFIG.keyOpt1;
-    keyOpt2Input.value = items.keyOpt2 ?? DEFAULT_CONFIG.keyOpt2;
-    keyOpt3Input.value = items.keyOpt3 ?? DEFAULT_CONFIG.keyOpt3;
     keyUnsnoozeInput.value = items.keyUnsnooze ?? DEFAULT_CONFIG.keyUnsnooze;
     keyTomorrowInput.value = items.keyTomorrow ?? DEFAULT_CONFIG.keyTomorrow;
     keyNextWeekInput.value = items.keyNextWeek ?? DEFAULT_CONFIG.keyNextWeek;
@@ -100,9 +88,6 @@ function saveOptions(e) {
 
   const newConfig = {
     enablePagination: enablePaginationInput.checked,
-    keyOpt1: keyOpt1Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt1,
-    keyOpt2: keyOpt2Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt2,
-    keyOpt3: keyOpt3Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt3,
     keyUnsnooze: keyUnsnoozeInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyUnsnooze,
     keyTomorrow: keyTomorrowInput.value.trim().toLowerCase(),
     keyNextWeek: keyNextWeekInput.value.trim().toLowerCase(),

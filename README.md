@@ -6,7 +6,8 @@ Designed specifically for corporate or restricted environments:
 - **Zero intrusive permissions**: Uses only `"storage"` (to persist keybind preferences) and matches only `https://mail.google.com/*`.
 - **List Pagination (`]]` and `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.). Only active in list view, never inside open messages.
 - **Auto-activating Snooze menu**: Detects when Gmail's Snooze menu appears and enables instant single-key actions.
-- **Dynamic Slot Shortcuts (1, 2, 3)**: Instantly pick whichever suggested date/time presets Gmail offers (Tomorrow, Later today, Next week, etc.).
+- **Dynamic Slot Shortcuts (1, 2, 3)**: Instantly pick whichever suggested date/time presets Gmail offers (Tomorrow, Later today, Next week, etc.) via self-evident number keys.
+- **Multi-line HUD**: Displays dynamic options clearly on their own dedicated line for rapid scanning.
 - **Unsnooze Support (U)**: Automatically detects when an email is already snoozed and activates `U` to unsnooze.
 - **Clean & non-intrusive UI**: Only appears when the Snooze menu is open—zero permanent toolbar clutter.
 - **No background service workers**: Uses 0 MB RAM when not on Gmail.
@@ -27,7 +28,12 @@ When viewing email lists (Inbox, Sent, Snoozed, Search, Labels) and **not** insi
 ---
 
 ### 2. Snooze Menu (When Menu is Open)
-When Gmail's Snooze menu is open on screen:
+When Gmail's Snooze menu is open on screen, the HUD shows:
+
+```text
+Snooze: [U] Unsnooze  |  [D] Pick date  |  [Esc] Cancel
+[1] Tomorrow  •  [2] Later this week  •  [3] Next week
+```
 
 #### Dynamic Suggested Slots & Actions
 | Key | Action |
@@ -54,7 +60,6 @@ To customize your keyboard shortcuts or HUD behavior:
 1. Right-click the **Gmail Shortcuts** extension icon in your Chrome toolbar → select **Options** (or go to `chrome://extensions` → **Details** on Gmail Shortcuts → **Extension options**).
 2. Configure:
    - **Enable `]]` and `[[` pagination shortcuts** (toggle on/off)
-   - **Dynamic Option keys** (default: `1`, `2`, `3`)
    - **Unsnooze key** (default: `u`)
    - **Named shortcut keys** (`t`, `w`, `m`, `d`)
    - **Show floating HUD** (toggle on/off)

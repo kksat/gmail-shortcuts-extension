@@ -3,7 +3,8 @@
  * Fast, lightweight, and configurable keyboard shortcuts for Gmail.
  *
  * Features:
- *   - Auto-activates in Snooze menu (1, 2, 3 dynamic slots, u unsnooze, t, w, m, d)
+ *   - Auto-activates in Snooze menu (dynamic slots 1, 2, 3, unsnooze u, named t, w, m, d)
+ *   - Multi-line HUD with dynamic options clearly displayed on a separate line
  *   - Email list navigation: ]] for Next Page, [[ for Previous Page (only in list view)
  */
 
@@ -15,9 +16,6 @@
   window.__gmail_shortcuts_installed = true;
 
   const DEFAULT_CONFIG = {
-    keyOpt1: '1',
-    keyOpt2: '2',
-    keyOpt3: '3',
     keyUnsnooze: 'u',
     keyTomorrow: 't',
     keyNextWeek: 'w',
@@ -270,35 +268,39 @@
   }
 
   /**
-   * Build the floating HUD message dynamically from the currently visible menu options.
+   * Build the floating HUD message with dynamic options on a separate line.
    */
   function getHUDMessage(parsed) {
-    const parts = [];
-
-    if (parsed.unsnoozeItem) {
-      const uKey = (currentConfig.keyUnsnooze || 'u').toUpperCase();
-      parts.push(`<b>[${uKey}]</b> Unsnooze`);
-    }
-
-    const optKeys = [
-      (currentConfig.keyOpt1 || '1').toUpperCase(),
-      (currentConfig.keyOpt2 || '2').toUpperCase(),
-      (currentConfig.keyOpt3 || '3').toUpperCase()
-    ];
-
+    const dynamicParts = [];
     parsed.dynamicItems.forEach((item, idx) => {
-      const keyLabel = optKeys[idx] || `${idx + 1}`;
+      const num = idx + 1;
       const title = (item.innerText || '').split('\n')[0].trim();
-      parts.push(`<b>[${keyLabel}]</b> ${title}`);
+      dynamicParts.push(`<b>[${num}]</b> ${title}`);
     });
 
+    const actionParts = [];
+    if (parsed.unsnoozeItem) {
+      const uKey = (currentConfig.keyUnsnooze || 'u').toUpperCase();
+      actionParts.push(`<b>[${uKey}]</b> Unsnooze`);
+    }
     if (parsed.pickDateItem) {
       const dKey = (currentConfig.keyPickDate || 'd').toUpperCase();
-      parts.push(`<b>[${dKey}]</b> Pick date`);
+      actionParts.push(`<b>[${dKey}]</b> Pick date`);
     }
+    actionParts.push('<b>[Esc]</b> Cancel');
 
-    parts.push('<b>[Esc]</b> Cancel');
-    return `Snooze: ${parts.join(' &nbsp;|&nbsp; ')}`;
+    const dynamicLine = dynamicParts.length > 0
+      ? `<div style="font-size: 12px; color: #a8c7fa; font-weight: 500; margin-top: 2px;">${dynamicParts.join(' &nbsp;&bull;&nbsp; ')}</div>`
+      : '';
+
+    return `
+      <div style="display: flex; flex-direction: column; gap: 4px; text-align: center; line-height: 1.4;">
+        <div style="font-weight: 500; font-size: 13px;">
+          Snooze: ${actionParts.join(' &nbsp;|&nbsp; ')}
+        </div>
+        ${dynamicLine}
+      </div>
+    `;
   }
 
   /**
@@ -317,7 +319,7 @@
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: '999999',
-        padding: '10px 18px',
+        padding: '10px 22px',
         borderRadius: '8px',
         fontFamily: 'Google Sans, Roboto, Helvetica, Arial, sans-serif',
         fontSize: '13px',
@@ -439,22 +441,7 @@
       return;
     }
 
-    // 2. Dynamic options 1, 2, 3 (configurable)
-    const optMap = {
-      [(currentConfig.keyOpt1 || '1').toLowerCase()]: 0,
-      [(currentConfig.keyOpt2 || '2').toLowerCase()]: 1,
-      [(currentConfig.keyOpt3 || '3').toLowerCase()]: 2
-    };
-
-    if (optMap[key] !== undefined && parsed.dynamicItems[optMap[key]]) {
-      event.preventDefault();
-      event.stopPropagation();
-      const target = parsed.dynamicItems[optMap[key]];
-      clickMenuItem(target, target.innerText.split('\n')[0].trim());
-      return;
-    }
-
-    // Direct digits 1-9 fallback for dynamic items
+    // 2. Dynamic options 1, 2, 3 (self-evident numeric keys)
     const digitIndex = parseInt(key, 10) - 1;
     if (!isNaN(digitIndex) && digitIndex >= 0 && parsed.dynamicItems[digitIndex]) {
       event.preventDefault();

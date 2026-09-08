@@ -270,35 +270,11 @@
       </div>
     </div>
 
-    <!-- Dynamic & Unsnooze Card -->
+    <!-- Snooze Shortcuts Card -->
     <div class="card">
-      <div class="card-title">Dynamic Snooze Slots & Unsnooze</div>
+      <div class="card-title">Snooze Menu Shortcuts</div>
       <div class="card-hint">
-        Gmail dynamically suggests time options (e.g., Tomorrow, Later today, Next week). Use numbers 1, 2, 3 to quickly pick whichever preset is offered, and <b>U</b> to Unsnooze.
-      </div>
-
-      <div class="setting-row">
-        <div>
-          <div class="setting-label">1st Dynamic Option</div>
-          <div class="setting-desc">Usually 'Tomorrow' or 'Later today'</div>
-        </div>
-        <input type="text" id="keyOpt1" class="key-input" maxlength="1" required>
-      </div>
-
-      <div class="setting-row">
-        <div>
-          <div class="setting-label">2nd Dynamic Option</div>
-          <div class="setting-desc">Usually 'Later this week' or 'This weekend'</div>
-        </div>
-        <input type="text" id="keyOpt2" class="key-input" maxlength="1" required>
-      </div>
-
-      <div class="setting-row">
-        <div>
-          <div class="setting-label">3rd Dynamic Option</div>
-          <div class="setting-desc">Usually 'Next week'</div>
-        </div>
-        <input type="text" id="keyOpt3" class="key-input" maxlength="1" required>
+        Dynamic time presets (Tomorrow, Later today, Next week) are self-evidently bound to keys <b>1</b>, <b>2</b>, and <b>3</b>. Customize specific keys below:
       </div>
 
       <div class="setting-row">
@@ -308,18 +284,10 @@
         </div>
         <input type="text" id="keyUnsnooze" class="key-input" maxlength="1" required>
       </div>
-    </div>
-
-    <!-- Semantic / Named Shortcuts Card -->
-    <div class="card">
-      <div class="card-title">Named Shortcut Fallbacks</div>
-      <div class="card-hint">
-        Direct letter shortcuts for specific destinations regardless of slot position.
-      </div>
 
       <div class="setting-row">
         <div>
-          <div class="setting-label">Tomorrow</div>
+          <div class="setting-label">Tomorrow (named fallback)</div>
           <div class="setting-desc">Quick key matching Tomorrow</div>
         </div>
         <input type="text" id="keyTomorrow" class="key-input" maxlength="1">
@@ -327,7 +295,7 @@
 
       <div class="setting-row">
         <div>
-          <div class="setting-label">Next Week</div>
+          <div class="setting-label">Next Week (named fallback)</div>
           <div class="setting-desc">Quick key matching Next week</div>
         </div>
         <input type="text" id="keyNextWeek" class="key-input" maxlength="1">
@@ -335,7 +303,7 @@
 
       <div class="setting-row">
         <div>
-          <div class="setting-label">Later this week / Weekend</div>
+          <div class="setting-label">Later this week / Weekend (named fallback)</div>
           <div class="setting-desc">Quick key matching Later this week</div>
         </div>
         <input type="text" id="keyLaterWeek" class="key-input" maxlength="1">
