@@ -6,7 +6,9 @@
  *   - Auto-activates in Snooze menu (dynamic slots 1, 2, 3..., unsnooze u, named t, w, m, d)
  *   - Multi-line HUD with dynamic options on a separate line
  *   - Hover-protected hint panel (never disappears while mouse is on it; clickable items)
- *   - Email list navigation: ]] for Next Page, [[ for Previous Page (only in list view)
+ *   - Email list navigation (only in list view):
+ *       - ]] for Next Page, [[ for Previous Page
+ *       - gg for Top email, G (Shift+G) for Bottom email
  */
 
 (function () {
@@ -23,6 +25,7 @@
     keyLaterWeek: 'm',
     keyPickDate: 'd',
     enablePagination: true,
+    enableListJump: true,
     showHUD: true,
     hudTimeoutSec: 4
   };
@@ -35,6 +38,10 @@
   let lastBracketKey = null;
   let lastBracketTimer = null;
   const BRACKET_TIMEOUT_MS = 500;
+
+  // State for gg sequence detection
+  let lastGTime = 0;
+  const G_TIMEOUT_MS = 500;
 
   // Load configuration from storage
   const storage = chrome.storage?.sync || chrome.storage?.local;
@@ -97,6 +104,76 @@
     // 4. Fallback: Table with role="grid" inside role="main"
     const grid = document.querySelector('div[role="main"] table[role="grid"]');
     return !!(grid && grid.offsetParent !== null);
+  }
+
+  /**
+   * Get all visible email rows in the current list view.
+   */
+  function getEmailListRows() {
+    const rows = Array.from(
+      document.querySelectorAll('div[gh="tl"] tr.zA, table[role="grid"] tr.zA, tr.zA')
+    ).filter(r => r.offsetParent !== null);
+
+    if (rows.length > 0) return rows;
+
+    return Array.from(
+      document.querySelectorAll('div[role="main"] table[role="grid"] tbody tr[role="row"]')
+    ).filter(r => r.offsetParent !== null && r.querySelector('[role="checkbox"]'));
+  }
+
+  /**
+   * Focus, scroll to, and subtly highlight an email row.
+   */
+  function focusEmailRow(row) {
+    if (!row) return;
+
+    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    if (!row.hasAttribute('tabindex')) {
+      row.setAttribute('tabindex', '-1');
+    }
+    row.focus({ preventScroll: true });
+    row.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+
+    const cell = row.querySelector('td');
+    if (cell) {
+      if (!cell.hasAttribute('tabindex')) {
+        cell.setAttribute('tabindex', '-1');
+      }
+      cell.focus?.({ preventScroll: true });
+      cell.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    }
+
+    const origOutline = row.style.outline;
+    const origTransition = row.style.transition;
+    row.style.transition = 'outline 0.15s ease';
+    row.style.outline = '2px solid #1a73e8';
+    row.style.outlineOffset = '-2px';
+    setTimeout(() => {
+      row.style.outline = origOutline;
+      row.style.transition = origTransition;
+    }, 1000);
+  }
+
+  function goToTopEmail() {
+    const rows = getEmailListRows();
+    if (rows.length === 0) {
+      showHUD('⚠️ No emails found in list');
+      return;
+    }
+    focusEmailRow(rows[0]);
+    showHUD(`⬆ Top email (1 of ${rows.length})`, true);
+  }
+
+  function goToBottomEmail() {
+    const rows = getEmailListRows();
+    if (rows.length === 0) {
+      showHUD('⚠️ No emails found in list');
+      return;
+    }
+    const lastRow = rows[rows.length - 1];
+    focusEmailRow(lastRow);
+    showHUD(`⬇ Bottom email (${rows.length} of ${rows.length})`, true);
   }
 
   /**
@@ -533,55 +610,90 @@
     const menuData = getVisibleSnoozeMenu();
 
     // =======================================================================
-    // Context 1: Email List View Navigation (]] Next Page, [[ Previous Page)
+    // Context 1: Email List View Navigation (gg, G, ]], [[)
     // Only active when listing emails and NOT in an open email thread
     // =======================================================================
-    if (!menuData && currentConfig.enablePagination && isEmailListView()) {
-      if (key === ']') {
-        if (lastBracketKey === ']') {
-          // Second ']' -> Next Page!
-          clearTimeout(lastBracketTimer);
-          lastBracketKey = null;
-          event.preventDefault();
-          event.stopPropagation();
-          goToNextPage();
-        } else {
-          // First ']' -> Start timer
-          lastBracketKey = ']';
-          event.preventDefault();
-          event.stopPropagation();
-          clearTimeout(lastBracketTimer);
-          lastBracketTimer = setTimeout(() => {
+    if (!menuData && isEmailListView()) {
+      // 1. Pagination shortcuts: ]] and [[
+      if (currentConfig.enablePagination) {
+        if (key === ']') {
+          if (lastBracketKey === ']') {
+            // Second ']' -> Next Page!
+            clearTimeout(lastBracketTimer);
             lastBracketKey = null;
-          }, BRACKET_TIMEOUT_MS);
+            event.preventDefault();
+            event.stopPropagation();
+            goToNextPage();
+          } else {
+            // First ']' -> Start timer
+            lastBracketKey = ']';
+            event.preventDefault();
+            event.stopPropagation();
+            clearTimeout(lastBracketTimer);
+            lastBracketTimer = setTimeout(() => {
+              lastBracketKey = null;
+            }, BRACKET_TIMEOUT_MS);
+          }
+          return;
         }
-        return;
+
+        if (key === '[') {
+          if (lastBracketKey === '[') {
+            // Second '[' -> Previous Page!
+            clearTimeout(lastBracketTimer);
+            lastBracketKey = null;
+            event.preventDefault();
+            event.stopPropagation();
+            goToPrevPage();
+          } else {
+            // First '[' -> Start timer
+            lastBracketKey = '[';
+            event.preventDefault();
+            event.stopPropagation();
+            clearTimeout(lastBracketTimer);
+            lastBracketTimer = setTimeout(() => {
+              lastBracketKey = null;
+            }, BRACKET_TIMEOUT_MS);
+          }
+          return;
+        }
+
+        // Any other key clears bracket sequence
+        lastBracketKey = null;
+        clearTimeout(lastBracketTimer);
       }
 
-      if (key === '[') {
-        if (lastBracketKey === '[') {
-          // Second '[' -> Previous Page!
-          clearTimeout(lastBracketTimer);
-          lastBracketKey = null;
+      // 2. Email list jumping: gg (top) and G (bottom)
+      if (currentConfig.enableListJump) {
+        // 'G' (Shift + g): Go to bottom email
+        if (event.key === 'G' || (event.shiftKey && key === 'g')) {
           event.preventDefault();
           event.stopPropagation();
-          goToPrevPage();
-        } else {
-          // First '[' -> Start timer
-          lastBracketKey = '[';
-          event.preventDefault();
-          event.stopPropagation();
-          clearTimeout(lastBracketTimer);
-          lastBracketTimer = setTimeout(() => {
-            lastBracketKey = null;
-          }, BRACKET_TIMEOUT_MS);
+          lastGTime = 0;
+          goToBottomEmail();
+          return;
         }
-        return;
-      }
 
-      // Any other key clears bracket sequence
-      lastBracketKey = null;
-      clearTimeout(lastBracketTimer);
+        // 'gg' (g pressed twice within 500ms): Go to top email
+        if (event.key === 'g' && !event.shiftKey) {
+          const now = Date.now();
+          if (now - lastGTime < G_TIMEOUT_MS) {
+            // Second 'g' pressed in sequence!
+            lastGTime = 0;
+            event.preventDefault();
+            event.stopPropagation();
+            goToTopEmail();
+            return;
+          } else {
+            // First 'g' pressed -> record timestamp, but do NOT preventDefault
+            // so native Gmail 'g' combos (gi, gt, gd, etc.) still work
+            lastGTime = now;
+          }
+        } else if (lastGTime > 0 && event.key !== 'Shift') {
+          // Any non-g key clears the 'g' timer
+          lastGTime = 0;
+        }
+      }
     }
 
     // =======================================================================

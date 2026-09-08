@@ -1,27 +1,30 @@
 # Gmail Shortcuts (Chrome Extension)
 
-A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts for email pagination and Gmail's Snooze menu.
+A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts for email navigation and Gmail's Snooze menu.
 
 Designed specifically for corporate or restricted environments:
 - **Zero intrusive permissions**: Uses only `"storage"` (to persist keybind preferences) and matches only `https://mail.google.com/*`.
-- **List Pagination (`]]` and `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.). Only active in list view, never inside open messages.
+- **List Navigation (`gg` & `G`)**: Jump straight to the **first** (`gg`) or **last** (`G` / Shift+G) email in the current view.
+- **List Pagination (`]]` & `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.).
+- **Strict Context Awareness**: Navigation shortcuts are only active in list view, never inside open email threads.
 - **Auto-activating Snooze menu**: Detects when Gmail's Snooze menu appears and enables instant single-key actions.
-- **Dynamic Slot Shortcuts (1, 2, 3)**: Instantly pick whichever suggested date/time presets Gmail offers (Tomorrow, Later today, Next week, etc.) via self-evident number keys.
-- **Multi-line HUD**: Displays dynamic options clearly on their own dedicated line for rapid scanning.
+- **Dynamic Slot Shortcuts (1, 2, 3...)**: Instantly pick whichever suggested date/time presets Gmail offers (Tomorrow, Later today, Next week, etc.).
+- **Multi-line HUD**: Displays all static shortcuts on one line and dynamic options on their own separate line.
+- **Hover-Protected HUD**: Hint panel never disappears while the mouse is over it, and options are clickable.
 - **Unsnooze Support (U)**: Automatically detects when an email is already snoozed and activates `U` to unsnooze.
-- **Clean & non-intrusive UI**: Only appears when the Snooze menu is open—zero permanent toolbar clutter.
-- **No background service workers**: Uses 0 MB RAM when not on Gmail.
 - **Typing-safe**: Never intercepts keystrokes while drafting an email, typing a search query, or interacting with inputs.
 
 ---
 
 ## Shortcuts
 
-### 1. Email List Pagination (Only in List View)
+### 1. Email List Navigation (Only in List View)
 When viewing email lists (Inbox, Sent, Snoozed, Search, Labels) and **not** inside an open email:
 
 | Shortcut | Action |
 | :--- | :--- |
+| **`gg`** | **Jump to Top Email** (1st email on the page) |
+| **`G`** (`Shift+g`) | **Jump to Bottom Email** (last email on the page) |
 | **`]]`** | **Next page** (Older emails) |
 | **`[[`** | **Previous page** (Newer emails) |
 
@@ -31,25 +34,28 @@ When viewing email lists (Inbox, Sent, Snoozed, Search, Labels) and **not** insi
 When Gmail's Snooze menu is open on screen, the HUD shows:
 
 ```text
-Snooze: [U] Unsnooze  |  [D] Pick date  |  [Esc] Cancel
+Snooze: [T] Tomorrow  |  [W] Next week  |  [M] Later this week  |  [D] Pick date  |  [Esc] Cancel
 [1] Tomorrow  •  [2] Later this week  •  [3] Next week
 ```
 
-#### Dynamic Suggested Slots & Actions
+*(If the email is already snoozed, **`[U] Unsnooze`** is also displayed).*
+
+#### Static Shortcuts
+| Key | Action |
+| :--- | :--- |
+| **`u`** | **Unsnooze** (active when email is currently snoozed) |
+| **`t`** | Snooze until **Tomorrow** |
+| **`w`** | Snooze until **Next week** |
+| **`m`** | Snooze until **Later this week** (or Weekend) |
+| **`d`** | Open **Select Date & Time** custom picker |
+| **`Esc`** | Cancel |
+
+#### Dynamic Suggested Slots
 | Key | Action |
 | :--- | :--- |
 | **`1`** | Select **1st Dynamic Option** (e.g. *Tomorrow* or *Later today*) |
 | **`2`** | Select **2nd Dynamic Option** (e.g. *Later this week* or *This weekend*) |
 | **`3`** | Select **3rd Dynamic Option** (e.g. *Next week*) |
-| **`u`** | **Unsnooze** (active automatically when email is currently snoozed) |
-| **`d`** | Open **Select Date & Time** custom picker |
-| **`Esc`** | Cancel |
-
-#### Semantic / Named Fallbacks
-You can also always press the corresponding letter directly:
-- **`t`** → Tomorrow
-- **`w`** → Next week
-- **`m`** → Later this week / Weekend
 
 ---
 
@@ -59,6 +65,7 @@ To customize your keyboard shortcuts or HUD behavior:
 
 1. Right-click the **Gmail Shortcuts** extension icon in your Chrome toolbar → select **Options** (or go to `chrome://extensions` → **Details** on Gmail Shortcuts → **Extension options**).
 2. Configure:
+   - **Enable `gg` and `G` shortcuts** (toggle on/off)
    - **Enable `]]` and `[[` pagination shortcuts** (toggle on/off)
    - **Unsnooze key** (default: `u`)
    - **Named shortcut keys** (`t`, `w`, `m`, `d`)

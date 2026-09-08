@@ -11,6 +11,7 @@ const DEFAULT_CONFIG = {
   keyLaterWeek: 'm',
   keyPickDate: 'd',
   enablePagination: true,
+  enableListJump: true,
   showHUD: true,
   hudTimeoutSec: 4
 };
@@ -19,6 +20,7 @@ const form = document.getElementById('options-form');
 const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
+const enableListJumpInput = document.getElementById('enableListJump');
 const enablePaginationInput = document.getElementById('enablePagination');
 const keyUnsnoozeInput = document.getElementById('keyUnsnooze');
 const keyTomorrowInput = document.getElementById('keyTomorrow');
@@ -69,6 +71,7 @@ function restoreOptions() {
   if (!storage) return;
 
   storage.get(DEFAULT_CONFIG, (items) => {
+    enableListJumpInput.checked = items.enableListJump ?? DEFAULT_CONFIG.enableListJump;
     enablePaginationInput.checked = items.enablePagination ?? DEFAULT_CONFIG.enablePagination;
     keyUnsnoozeInput.value = items.keyUnsnooze ?? DEFAULT_CONFIG.keyUnsnooze;
     keyTomorrowInput.value = items.keyTomorrow ?? DEFAULT_CONFIG.keyTomorrow;
@@ -87,6 +90,7 @@ function saveOptions(e) {
   e.preventDefault();
 
   const newConfig = {
+    enableListJump: enableListJumpInput.checked,
     enablePagination: enablePaginationInput.checked,
     keyUnsnooze: keyUnsnoozeInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyUnsnooze,
     keyTomorrow: keyTomorrowInput.value.trim().toLowerCase(),
