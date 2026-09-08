@@ -5,7 +5,6 @@
 'use strict';
 
 const DEFAULT_CONFIG = {
-  triggerKey: 'b',
   keyTomorrow: 't',
   keyNextWeek: 'w',
   keyLaterWeek: 'm',
@@ -18,7 +17,6 @@ const form = document.getElementById('options-form');
 const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
-const triggerKeyInput = document.getElementById('triggerKey');
 const keyTomorrowInput = document.getElementById('keyTomorrow');
 const keyNextWeekInput = document.getElementById('keyNextWeek');
 const keyLaterWeekInput = document.getElementById('keyLaterWeek');
@@ -27,7 +25,6 @@ const showHUDInput = document.getElementById('showHUD');
 const hudTimeoutSecInput = document.getElementById('hudTimeoutSec');
 
 const keyInputs = [
-  triggerKeyInput,
   keyTomorrowInput,
   keyNextWeekInput,
   keyLaterWeekInput,
@@ -46,7 +43,7 @@ keyInputs.forEach((input) => {
 
     // Allow Backspace / Delete to clear optional keys
     if (e.key === 'Backspace' || e.key === 'Delete') {
-      if (input !== triggerKeyInput && input !== keyTomorrowInput) {
+      if (input !== keyTomorrowInput) {
         input.value = '';
       }
       return;
@@ -71,7 +68,6 @@ function restoreOptions() {
   if (!storage) return;
 
   storage.get(DEFAULT_CONFIG, (items) => {
-    triggerKeyInput.value = items.triggerKey || DEFAULT_CONFIG.triggerKey;
     keyTomorrowInput.value = items.keyTomorrow || DEFAULT_CONFIG.keyTomorrow;
     keyNextWeekInput.value = items.keyNextWeek || DEFAULT_CONFIG.keyNextWeek;
     keyLaterWeekInput.value = items.keyLaterWeek || DEFAULT_CONFIG.keyLaterWeek;
@@ -102,7 +98,6 @@ function saveOptions(e) {
   }
 
   const newConfig = {
-    triggerKey: (triggerKeyInput.value.trim().toLowerCase() || DEFAULT_CONFIG.triggerKey),
     keyTomorrow: (keyTomorrowInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyTomorrow),
     keyNextWeek: (keyNextWeekInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyNextWeek),
     keyLaterWeek: (keyLaterWeekInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyLaterWeek),

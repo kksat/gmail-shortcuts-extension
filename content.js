@@ -2,8 +2,8 @@
  * Gmail Shortcuts
  * Fast, lightweight, and configurable keyboard shortcuts for Gmail.
  *
- * Configurable via Chrome Extension Options page:
- *   chrome://extensions -> Details -> Extension options
+ * Automatically activates whenever Gmail's Snooze menu is opened
+ * (via Gmail's native shortcut, button click, or context menu).
  */
 
 (function () {
@@ -14,7 +14,6 @@
   window.__gmail_shortcuts_installed = true;
 
   const DEFAULT_CONFIG = {
-    triggerKey: 'b',
     keyTomorrow: 't',
     keyNextWeek: 'w',
     keyLaterWeek: 'm',
@@ -24,8 +23,7 @@
   };
 
   let currentConfig = { ...DEFAULT_CONFIG };
-  let snoozeWaiting = false;
-  let snoozeTimeout = null;
+  let isMenuOpen = false;
 
   // Load configuration from storage
   const storage = chrome.storage?.sync || chrome.storage?.local;
@@ -124,6 +122,7 @@
           text.includes('tomorrow') ||
           text.includes('next week') ||
           text.includes('later this week') ||
+          text.includes('this weekend') ||
           text.includes('select date') ||
           text.includes('pick date')
         ) {
@@ -132,18 +131,6 @@
       }
     }
     return null;
-  }
-
-  /**
-   * Find the visible Snooze button in the Gmail toolbar or message header.
-   */
-  function findSnoozeButton() {
-    const candidates = Array.from(
-      document.querySelectorAll(
-        'div[aria-label*="Snooze"], div[data-tooltip*="Snooze"], button[aria-label*="Snooze"]'
-      )
-    );
-    return candidates.find(el => el.offsetParent !== null);
   }
 
   /**
@@ -165,29 +152,46 @@
   /**
    * Select a snooze option by action name ('tomorrow', 'next_week', etc.)
    */
-  function selectOption(actionName) {
+  function selectOption(actionName, existingMenuData) {
     const config = SNOOZE_ACTIONS[actionName];
     if (!config) return;
 
+    const menuData = existingMenuData || getVisibleSnoozeMenu();
+    if (menuData && menuData.items.length > 0) {
+      let target = menuData.items.find(item =>
+        config.patterns.some(p => p.test(item.innerText))
+      );
+
+      if (!target && menuData.items[config.fallbackIndex]) {
+        target = menuData.items[config.fallbackIndex];
+      }
+
+      if (target) {
+        triggerClick(target);
+        showHUD(`✓ Snoozed: ${config.name}`, true);
+        isMenuOpen = false;
+        return;
+      }
+    }
+
+    // Fallback: brief polling if menu is still mounting
     const start = Date.now();
     const interval = setInterval(() => {
-      const menuData = getVisibleSnoozeMenu();
-      if (menuData && menuData.items.length > 0) {
+      const m = getVisibleSnoozeMenu();
+      if (m && m.items.length > 0) {
         clearInterval(interval);
-
-        let target = menuData.items.find(item =>
+        let target = m.items.find(item =>
           config.patterns.some(p => p.test(item.innerText))
         );
-
-        if (!target && menuData.items[config.fallbackIndex]) {
-          target = menuData.items[config.fallbackIndex];
+        if (!target && m.items[config.fallbackIndex]) {
+          target = m.items[config.fallbackIndex];
         }
-
         if (target) {
           triggerClick(target);
           showHUD(`✓ Snoozed: ${config.name}`, true);
+          isMenuOpen = false;
         }
-      } else if (Date.now() - start > 2000) {
+      } else if (Date.now() - start > 1500) {
         clearInterval(interval);
       }
     }, 25);
@@ -251,53 +255,62 @@
 
   /**
    * Main keyboard event listener.
+   * Only intercepts keys when Gmail's Snooze menu is actually open on screen.
    */
   function handleKeyDown(event) {
-    // Never intercept when typing or using browser/system shortcuts (Cmd/Ctrl/Alt)
     if (isTyping(event) || event.ctrlKey || event.altKey || event.metaKey) {
       return;
     }
 
+    const menuData = getVisibleSnoozeMenu();
+    if (!menuData) return;
+
     const key = event.key.toLowerCase();
-    const triggerKey = (currentConfig.triggerKey || 'b').toLowerCase();
-    const menuOpen = getVisibleSnoozeMenu() !== null;
     const actionMap = getKeyActionMap();
+    const action = actionMap[key];
 
-    // 1. User presses trigger key (default 'b')
-    if (key === triggerKey && !snoozeWaiting && !menuOpen) {
-      snoozeWaiting = true;
-      showHUD(getHUDMessage());
-
-      // If Gmail's native keyboard shortcuts are disabled, click the Snooze button automatically
-      setTimeout(() => {
-        if (!getVisibleSnoozeMenu()) {
-          const btn = findSnoozeButton();
-          if (btn) triggerClick(btn);
-        }
-      }, 80);
-
-      const waitDuration = (currentConfig.hudTimeoutSec || 4) * 1000;
-      clearTimeout(snoozeTimeout);
-      snoozeTimeout = setTimeout(() => {
-        snoozeWaiting = false;
-      }, waitDuration);
-      return;
+    if (action) {
+      event.preventDefault();
+      event.stopPropagation();
+      selectOption(action, menuData);
+    } else if (key === 'escape') {
+      hideHUD();
+      isMenuOpen = false;
     }
+  }
 
-    // 2. User presses an action key or Escape while snooze is active or menu is visible
-    if (snoozeWaiting || menuOpen) {
-      const action = actionMap[key];
-      if (action) {
-        event.preventDefault();
-        event.stopPropagation();
-        snoozeWaiting = false;
-        selectOption(action);
-      } else if (key === 'escape') {
-        snoozeWaiting = false;
+  document.addEventListener('keydown', handleKeyDown, true);
+
+  /**
+   * Automatically detect when Gmail's Snooze menu appears or disappears.
+   */
+  function checkSnoozeMenu() {
+    const menuData = getVisibleSnoozeMenu();
+    if (menuData) {
+      if (!isMenuOpen) {
+        isMenuOpen = true;
+        showHUD(getHUDMessage());
+      }
+    } else {
+      if (isMenuOpen) {
+        isMenuOpen = false;
         hideHUD();
       }
     }
   }
 
-  document.addEventListener('keydown', handleKeyDown, true);
+  let checkScheduled = false;
+  const observer = new MutationObserver(() => {
+    if (checkScheduled) return;
+    checkScheduled = true;
+    requestAnimationFrame(() => {
+      checkScheduled = false;
+      checkSnoozeMenu();
+    });
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
 })();
