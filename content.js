@@ -147,50 +147,40 @@
   }
 
   /**
-   * Dispatch synthetic keydown and keyup events for Gmail's internal navigation.
+   * Actively selects an email row in Gmail by checking its checkbox,
+   * unchecking previously selected rows, shifting Gmail's internal cursor,
+   * scrolling into view, and providing visual feedback.
    */
-  function dispatchGmailKey(key, keyCode) {
-    const opts = {
-      key: key,
-      code: key === 'k' ? 'KeyK' : 'KeyJ',
-      keyCode: keyCode,
-      which: keyCode,
-      charCode: keyCode,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window
-    };
-    document.dispatchEvent(new KeyboardEvent('keydown', opts));
-    document.dispatchEvent(new KeyboardEvent('keyup', opts));
-  }
-
-  /**
-   * Shift Gmail's actual keyboard selection, DOM classes, focus, and scroll position to a row.
-   */
-  function focusRowDOM(row) {
+  function selectEmailRow(row, deselectOthers = true) {
     if (!row) return;
 
     // 1. Scroll into view
     row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 
-    // 2. Synchronize Gmail's native selection indicator classes PE (unread) / PF (read)
-    document.querySelectorAll('tr.zA.PE, tr.zA.PF').forEach(r => {
-      if (r !== row) r.classList.remove('PE', 'PF');
-    });
-    if (row.classList.contains('zE')) {
-      row.classList.add('PE');
-    } else {
-      row.classList.add('PF');
+    // 2. Uncheck any other rows that are currently checked
+    if (deselectOthers) {
+      const otherChecked = Array.from(
+        document.querySelectorAll(
+          'div[gh="tl"] tr.zA div[role="checkbox"][aria-checked="true"], table[role="grid"] tr.zA div[role="checkbox"][aria-checked="true"], tr.zA div[role="checkbox"][aria-checked="true"]'
+        )
+      ).filter(cb => !row.contains(cb));
+
+      otherChecked.forEach(cb => {
+        triggerClick(cb);
+      });
     }
 
-    // 3. Update roving tabindex
-    document.querySelectorAll('tr.zA[tabindex="0"]').forEach(r => {
-      if (r !== row) r.setAttribute('tabindex', '-1');
-    });
-    row.setAttribute('tabindex', '0');
+    // 3. Check the target row's checkbox (which actively selects the email and sets Gmail's cursor)
+    const targetCheckbox = row.querySelector('div[role="checkbox"]');
+    if (targetCheckbox) {
+      const isChecked = targetCheckbox.getAttribute('aria-checked') === 'true';
+      if (!isChecked) {
+        triggerClick(targetCheckbox);
+      }
+    }
 
-    // 4. Focus the row and dispatch focusin for accessibility and Gmail selection trackers
+    // 4. Update roving tabindex & focus
+    row.setAttribute('tabindex', '0');
     row.focus({ preventScroll: true });
     row.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 
@@ -222,17 +212,8 @@
       return;
     }
 
-    const currentRow = document.querySelector('tr.zA.PE, tr.zA.PF');
-    const currentIndex = currentRow ? rows.indexOf(currentRow) : -1;
-
-    // Move Gmail's internal selection controller up to row 0
-    const steps = currentIndex > 0 ? currentIndex : rows.length;
-    for (let i = 0; i < steps; i++) {
-      dispatchGmailKey('k', 75);
-    }
-
-    focusRowDOM(rows[0]);
-    showHUD(`⬆ Top email (1 of ${rows.length})`, true);
+    selectEmailRow(rows[0], true);
+    showHUD(`⬆ Selected top email (1 of ${rows.length})`, true);
   }
 
   function goToBottomEmail() {
@@ -242,18 +223,9 @@
       return;
     }
 
-    const lastIndex = rows.length - 1;
-    const currentRow = document.querySelector('tr.zA.PE, tr.zA.PF');
-    const currentIndex = currentRow ? rows.indexOf(currentRow) : -1;
-
-    // Move Gmail's internal selection controller down to the last row
-    const steps = currentIndex >= 0 ? (lastIndex - currentIndex) : rows.length;
-    for (let i = 0; i < steps; i++) {
-      dispatchGmailKey('j', 74);
-    }
-
-    focusRowDOM(rows[lastIndex]);
-    showHUD(`⬇ Bottom email (${rows.length} of ${rows.length})`, true);
+    const lastRow = rows[rows.length - 1];
+    selectEmailRow(lastRow, true);
+    showHUD(`⬇ Selected bottom email (${rows.length} of ${rows.length})`, true);
   }
 
   /**
