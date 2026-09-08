@@ -319,10 +319,54 @@
   }
 
   /**
-   * Build the floating HUD message with dynamic options on a separate line.
-   * Every dynamic option is assigned its own numeric shortcut [1], [2], [3], etc.
+   * Build the floating HUD message with:
+   *   Line 1: All static options ([U] Unsnooze, [T] Tomorrow, [W] Next week, [M] Later this week, [D] Pick date, [Esc] Cancel)
+   *   Line 2: Dynamic slot options ([1] ..., [2] ..., [3] ...)
    */
   function getHUDMessage(parsed) {
+    // 1. Static options line
+    const staticParts = [];
+
+    if (parsed.unsnoozeItem && currentConfig.keyUnsnooze) {
+      const uKey = currentConfig.keyUnsnooze.toUpperCase();
+      staticParts.push(
+        `<span data-shortcut-action="unsnooze" style="cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: background 0.15s;"><b>[${uKey}]</b> Unsnooze</span>`
+      );
+    }
+
+    if (currentConfig.keyTomorrow) {
+      const tKey = currentConfig.keyTomorrow.toUpperCase();
+      staticParts.push(
+        `<span data-shortcut-action="named-tomorrow" style="cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: background 0.15s;"><b>[${tKey}]</b> Tomorrow</span>`
+      );
+    }
+
+    if (currentConfig.keyNextWeek) {
+      const wKey = currentConfig.keyNextWeek.toUpperCase();
+      staticParts.push(
+        `<span data-shortcut-action="named-next-week" style="cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: background 0.15s;"><b>[${wKey}]</b> Next week</span>`
+      );
+    }
+
+    if (currentConfig.keyLaterWeek) {
+      const mKey = currentConfig.keyLaterWeek.toUpperCase();
+      staticParts.push(
+        `<span data-shortcut-action="named-later-week" style="cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: background 0.15s;"><b>[${mKey}]</b> Later this week</span>`
+      );
+    }
+
+    if (currentConfig.keyPickDate && parsed.pickDateItem) {
+      const dKey = currentConfig.keyPickDate.toUpperCase();
+      staticParts.push(
+        `<span data-shortcut-action="pick-date" style="cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: background 0.15s;"><b>[${dKey}]</b> Pick date</span>`
+      );
+    }
+
+    staticParts.push(
+      `<span data-shortcut-action="cancel" style="cursor: pointer; padding: 2px 5px; border-radius: 4px; transition: background 0.15s;"><b>[Esc]</b> Cancel</span>`
+    );
+
+    // 2. Dynamic options line
     const dynamicParts = [];
     parsed.dynamicItems.forEach((item, idx) => {
       const num = idx + 1;
@@ -332,23 +376,6 @@
       );
     });
 
-    const actionParts = [];
-    if (parsed.unsnoozeItem) {
-      const uKey = (currentConfig.keyUnsnooze || 'u').toUpperCase();
-      actionParts.push(
-        `<span data-shortcut-action="unsnooze" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;"><b>[${uKey}]</b> Unsnooze</span>`
-      );
-    }
-    if (parsed.pickDateItem) {
-      const dKey = (currentConfig.keyPickDate || 'd').toUpperCase();
-      actionParts.push(
-        `<span data-shortcut-action="pick-date" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;"><b>[${dKey}]</b> Pick date</span>`
-      );
-    }
-    actionParts.push(
-      `<span data-shortcut-action="cancel" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;"><b>[Esc]</b> Cancel</span>`
-    );
-
     const dynamicLine = dynamicParts.length > 0
       ? `<div style="font-size: 12px; color: #a8c7fa; font-weight: 500; margin-top: 3px;">${dynamicParts.join(' &nbsp;&bull;&nbsp; ')}</div>`
       : '';
@@ -356,7 +383,7 @@
     return `
       <div style="display: flex; flex-direction: column; gap: 4px; text-align: center; line-height: 1.4;">
         <div style="font-weight: 500; font-size: 13px;">
-          Snooze: ${actionParts.join(' &nbsp;|&nbsp; ')}
+          Snooze: ${staticParts.join(' &nbsp;|&nbsp; ')}
         </div>
         ${dynamicLine}
       </div>
@@ -450,6 +477,15 @@
             const title = (item.innerText || '').split('\n')[0].trim();
             clickMenuItem(item, title);
           }
+        } else if (actionType === 'named-tomorrow') {
+          const target = menuData.items.find(it => /tomorrow/i.test(it.innerText));
+          if (target) clickMenuItem(target, 'Tomorrow');
+        } else if (actionType === 'named-next-week') {
+          const target = menuData.items.find(it => /next week/i.test(it.innerText));
+          if (target) clickMenuItem(target, 'Next week');
+        } else if (actionType === 'named-later-week') {
+          const target = menuData.items.find(it => /later this week|this weekend|middle/i.test(it.innerText));
+          if (target) clickMenuItem(target, target.innerText.split('\n')[0].trim());
         } else if (actionType === 'pick-date' && parsed.pickDateItem) {
           clickMenuItem(parsed.pickDateItem, 'Select date & time');
         } else if (actionType === 'cancel') {
