@@ -6,9 +6,12 @@
  *   - Auto-activates in Snooze menu (dynamic slots 1, 2, 3..., unsnooze u, named t, w, m, d)
  *   - Multi-line HUD with dynamic options on a separate line
  *   - Hover-protected hint panel (never disappears while mouse is on it; clickable items)
- *   - Email list navigation (only in list view):
- *       - ]] for Next Page, [[ for Previous Page
- *       - gg for Top email, G (Shift+G) for Bottom email
+ *   - Navigation:
+ *       - gj: Go to Junk / Spam folder (complements native gi, gt, gd, ga)
+ *       - gg: Go to Top email (actual Gmail selection shifts to first email)
+ *       - G: Go to Bottom email (actual Gmail selection shifts to last email)
+ *       - ]]: Next page (Older emails)
+ *       - [[: Previous page (Newer emails)
  */
 
 (function () {
@@ -26,6 +29,7 @@
     keyPickDate: 'd',
     enablePagination: true,
     enableListJump: true,
+    enableGoToSpam: true,
     showHUD: true,
     hudTimeoutSec: 4
   };
@@ -39,7 +43,7 @@
   let lastBracketTimer = null;
   const BRACKET_TIMEOUT_MS = 500;
 
-  // State for gg sequence detection
+  // State for g sequences (gg -> top, gj -> spam)
   let lastGTime = 0;
   const G_TIMEOUT_MS = 500;
 
@@ -107,6 +111,27 @@
   }
 
   /**
+   * Navigate directly to the Spam / Junk folder.
+   */
+  function goToSpamFolder() {
+    showHUD('📂 Go to Spam (Junk)...', true);
+
+    const spamLink = Array.from(
+      document.querySelectorAll(
+        'a[href*="#spam"], a[title*="Spam"], a[aria-label*="Spam"], a[title*="Спам"], a[aria-label*="Спам"]'
+      )
+    ).find(el => el.offsetParent !== null);
+
+    if (spamLink) {
+      triggerClick(spamLink);
+    }
+
+    if (window.location.hash !== '#spam') {
+      window.location.hash = '#spam';
+    }
+  }
+
+  /**
    * Get all visible email rows in the current list view.
    */
   function getEmailListRows() {
@@ -122,16 +147,50 @@
   }
 
   /**
-   * Focus, scroll to, and subtly highlight an email row.
+   * Dispatch synthetic keydown and keyup events for Gmail's internal navigation.
    */
-  function focusEmailRow(row) {
+  function dispatchGmailKey(key, keyCode) {
+    const opts = {
+      key: key,
+      code: key === 'k' ? 'KeyK' : 'KeyJ',
+      keyCode: keyCode,
+      which: keyCode,
+      charCode: keyCode,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window
+    };
+    document.dispatchEvent(new KeyboardEvent('keydown', opts));
+    document.dispatchEvent(new KeyboardEvent('keyup', opts));
+  }
+
+  /**
+   * Shift Gmail's actual keyboard selection, DOM classes, focus, and scroll position to a row.
+   */
+  function focusRowDOM(row) {
     if (!row) return;
 
+    // 1. Scroll into view
     row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 
-    if (!row.hasAttribute('tabindex')) {
-      row.setAttribute('tabindex', '-1');
+    // 2. Synchronize Gmail's native selection indicator classes PE (unread) / PF (read)
+    document.querySelectorAll('tr.zA.PE, tr.zA.PF').forEach(r => {
+      if (r !== row) r.classList.remove('PE', 'PF');
+    });
+    if (row.classList.contains('zE')) {
+      row.classList.add('PE');
+    } else {
+      row.classList.add('PF');
     }
+
+    // 3. Update roving tabindex
+    document.querySelectorAll('tr.zA[tabindex="0"]').forEach(r => {
+      if (r !== row) r.setAttribute('tabindex', '-1');
+    });
+    row.setAttribute('tabindex', '0');
+
+    // 4. Focus the row and dispatch focusin for accessibility and Gmail selection trackers
     row.focus({ preventScroll: true });
     row.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
 
@@ -144,6 +203,7 @@
       cell.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
     }
 
+    // 5. Brief visual pulse so the user clearly sees which row became active
     const origOutline = row.style.outline;
     const origTransition = row.style.transition;
     row.style.transition = 'outline 0.15s ease';
@@ -161,7 +221,17 @@
       showHUD('⚠️ No emails found in list');
       return;
     }
-    focusEmailRow(rows[0]);
+
+    const currentRow = document.querySelector('tr.zA.PE, tr.zA.PF');
+    const currentIndex = currentRow ? rows.indexOf(currentRow) : -1;
+
+    // Move Gmail's internal selection controller up to row 0
+    const steps = currentIndex > 0 ? currentIndex : rows.length;
+    for (let i = 0; i < steps; i++) {
+      dispatchGmailKey('k', 75);
+    }
+
+    focusRowDOM(rows[0]);
     showHUD(`⬆ Top email (1 of ${rows.length})`, true);
   }
 
@@ -171,8 +241,18 @@
       showHUD('⚠️ No emails found in list');
       return;
     }
-    const lastRow = rows[rows.length - 1];
-    focusEmailRow(lastRow);
+
+    const lastIndex = rows.length - 1;
+    const currentRow = document.querySelector('tr.zA.PE, tr.zA.PF');
+    const currentIndex = currentRow ? rows.indexOf(currentRow) : -1;
+
+    // Move Gmail's internal selection controller down to the last row
+    const steps = currentIndex >= 0 ? (lastIndex - currentIndex) : rows.length;
+    for (let i = 0; i < steps; i++) {
+      dispatchGmailKey('j', 74);
+    }
+
+    focusRowDOM(rows[lastIndex]);
     showHUD(`⬇ Bottom email (${rows.length} of ${rows.length})`, true);
   }
 
@@ -610,6 +690,24 @@
     const menuData = getVisibleSnoozeMenu();
 
     // =======================================================================
+    // Context: Global Navigation (g + j -> Go to Spam / Junk)
+    // Works anywhere in Gmail (list view or open email)
+    // =======================================================================
+    if (!menuData && currentConfig.enableGoToSpam) {
+      if (key === 'j' && !event.shiftKey) {
+        const now = Date.now();
+        if (lastGTime > 0 && now - lastGTime < G_TIMEOUT_MS) {
+          // 'g' then 'j' detected -> Jump to Spam / Junk folder!
+          lastGTime = 0;
+          event.preventDefault();
+          event.stopPropagation();
+          goToSpamFolder();
+          return;
+        }
+      }
+    }
+
+    // =======================================================================
     // Context 1: Email List View Navigation (gg, G, ]], [[)
     // Only active when listing emails and NOT in an open email thread
     // =======================================================================
@@ -677,7 +775,7 @@
         // 'gg' (g pressed twice within 500ms): Go to top email
         if (event.key === 'g' && !event.shiftKey) {
           const now = Date.now();
-          if (now - lastGTime < G_TIMEOUT_MS) {
+          if (lastGTime > 0 && now - lastGTime < G_TIMEOUT_MS) {
             // Second 'g' pressed in sequence!
             lastGTime = 0;
             event.preventDefault();
@@ -686,13 +784,20 @@
             return;
           } else {
             // First 'g' pressed -> record timestamp, but do NOT preventDefault
-            // so native Gmail 'g' combos (gi, gt, gd, etc.) still work
+            // so native Gmail 'g' combos (gi, gt, gd, ga) still work
             lastGTime = now;
           }
         } else if (lastGTime > 0 && event.key !== 'Shift') {
-          // Any non-g key clears the 'g' timer
+          // Any non-g, non-j key clears the 'g' timer
           lastGTime = 0;
         }
+      }
+    } else if (!menuData) {
+      // Outside email list view: still track first 'g' for 'gj' navigation
+      if (event.key === 'g' && !event.shiftKey) {
+        lastGTime = Date.now();
+      } else if (lastGTime > 0 && event.key !== 'Shift') {
+        lastGTime = 0;
       }
     }
 

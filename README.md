@@ -4,9 +4,10 @@ A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard s
 
 Designed specifically for corporate or restricted environments:
 - **Zero intrusive permissions**: Uses only `"storage"` (to persist keybind preferences) and matches only `https://mail.google.com/*`.
-- **List Navigation (`gg` & `G`)**: Jump straight to the **first** (`gg`) or **last** (`G` / Shift+G) email in the current view.
+- **Go to Junk / Spam (`gj`)**: Jump directly to your Spam folder from anywhere in Gmail (complements native `gi`, `gt`, `gd`, `ga`).
+- **List Navigation (`gg` & `G`)**: Jump straight to the **first** (`gg`) or **last** (`G` / Shift+G) email on the page, shifting Gmail's actual active selection cursor.
 - **List Pagination (`]]` & `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.).
-- **Strict Context Awareness**: Navigation shortcuts are only active in list view, never inside open email threads.
+- **Strict Context Awareness**: `gg`, `G`, `]]`, and `[[` are active only in email list view, never inside open email threads.
 - **Auto-activating Snooze menu**: Detects when Gmail's Snooze menu appears and enables instant single-key actions.
 - **Dynamic Slot Shortcuts (1, 2, 3...)**: Instantly pick whichever suggested date/time presets Gmail offers (Tomorrow, Later today, Next week, etc.).
 - **Multi-line HUD**: Displays all static shortcuts on one line and dynamic options on their own separate line.
@@ -18,15 +19,14 @@ Designed specifically for corporate or restricted environments:
 
 ## Shortcuts
 
-### 1. Email List Navigation (Only in List View)
-When viewing email lists (Inbox, Sent, Snoozed, Search, Labels) and **not** inside an open email:
-
-| Shortcut | Action |
-| :--- | :--- |
-| **`gg`** | **Jump to Top Email** (1st email on the page) |
-| **`G`** (`Shift+g`) | **Jump to Bottom Email** (last email on the page) |
-| **`]]`** | **Next page** (Older emails) |
-| **`[[`** | **Previous page** (Newer emails) |
+### 1. Navigation Shortcuts
+| Shortcut | Action | Scope |
+| :--- | :--- | :--- |
+| **`gj`** | **Go to Junk / Spam** folder | Anywhere in Gmail |
+| **`gg`** | **Jump to Top Email** (shifts Gmail selection to 1st email) | Email list view |
+| **`G`** (`Shift+g`) | **Jump to Bottom Email** (shifts Gmail selection to last email) | Email list view |
+| **`]]`** | **Next page** (Older emails) | Email list view |
+| **`[[`** | **Previous page** (Newer emails) | Email list view |
 
 ---
 
@@ -65,8 +65,9 @@ To customize your keyboard shortcuts or HUD behavior:
 
 1. Right-click the **Gmail Shortcuts** extension icon in your Chrome toolbar → select **Options** (or go to `chrome://extensions` → **Details** on Gmail Shortcuts → **Extension options**).
 2. Configure:
-   - **Enable `gg` and `G` shortcuts** (toggle on/off)
-   - **Enable `]]` and `[[` pagination shortcuts** (toggle on/off)
+   - **Enable `gj` shortcut** (Go to Spam / Junk)
+   - **Enable `gg` and `G` shortcuts** (List jumping)
+   - **Enable `]]` and `[[` pagination shortcuts**
    - **Unsnooze key** (default: `u`)
    - **Named shortcut keys** (`t`, `w`, `m`, `d`)
    - **Show floating HUD** (toggle on/off)

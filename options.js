@@ -12,6 +12,7 @@ const DEFAULT_CONFIG = {
   keyPickDate: 'd',
   enablePagination: true,
   enableListJump: true,
+  enableGoToSpam: true,
   showHUD: true,
   hudTimeoutSec: 4
 };
@@ -20,6 +21,7 @@ const form = document.getElementById('options-form');
 const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
+const enableGoToSpamInput = document.getElementById('enableGoToSpam');
 const enableListJumpInput = document.getElementById('enableListJump');
 const enablePaginationInput = document.getElementById('enablePagination');
 const keyUnsnoozeInput = document.getElementById('keyUnsnooze');
@@ -71,6 +73,7 @@ function restoreOptions() {
   if (!storage) return;
 
   storage.get(DEFAULT_CONFIG, (items) => {
+    enableGoToSpamInput.checked = items.enableGoToSpam ?? DEFAULT_CONFIG.enableGoToSpam;
     enableListJumpInput.checked = items.enableListJump ?? DEFAULT_CONFIG.enableListJump;
     enablePaginationInput.checked = items.enablePagination ?? DEFAULT_CONFIG.enablePagination;
     keyUnsnoozeInput.value = items.keyUnsnooze ?? DEFAULT_CONFIG.keyUnsnooze;
@@ -90,6 +93,7 @@ function saveOptions(e) {
   e.preventDefault();
 
   const newConfig = {
+    enableGoToSpam: enableGoToSpamInput.checked,
     enableListJump: enableListJumpInput.checked,
     enablePagination: enablePaginationInput.checked,
     keyUnsnooze: keyUnsnoozeInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyUnsnooze,
