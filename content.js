@@ -147,9 +147,9 @@
   }
 
   /**
-   * Actively selects an email row in Gmail by checking its checkbox,
-   * unchecking previously selected rows, shifting Gmail's internal cursor,
-   * scrolling into view, and providing visual feedback.
+   * Moves Gmail's active selection cursor to an email row by temporarily
+   * engaging the native checkbox, shifting Gmail's internal cursor, and then
+   * unselecting it at the end so the email is left unselected with the cursor active.
    */
   function selectEmailRow(row, deselectOthers = true) {
     if (!row) return;
@@ -170,12 +170,27 @@
       });
     }
 
-    // 3. Check the target row's checkbox (which actively selects the email and sets Gmail's cursor)
+    // 3. Shift Gmail's cursor via checkbox, then unselect at the end
     const targetCheckbox = row.querySelector('div[role="checkbox"]');
     if (targetCheckbox) {
-      const isChecked = targetCheckbox.getAttribute('aria-checked') === 'true';
-      if (!isChecked) {
+      const wasChecked = targetCheckbox.getAttribute('aria-checked') === 'true';
+      if (!wasChecked) {
+        // Check to move Gmail's cursor to this row
         triggerClick(targetCheckbox);
+
+        // Unselect it so the email is not left checked
+        setTimeout(() => {
+          if (targetCheckbox.getAttribute('aria-checked') === 'true') {
+            triggerClick(targetCheckbox);
+          }
+        }, 50);
+      } else {
+        // If already checked, uncheck it
+        setTimeout(() => {
+          if (targetCheckbox.getAttribute('aria-checked') === 'true') {
+            triggerClick(targetCheckbox);
+          }
+        }, 50);
       }
     }
 
@@ -213,7 +228,7 @@
     }
 
     selectEmailRow(rows[0], true);
-    showHUD(`⬆ Selected top email (1 of ${rows.length})`, true);
+    showHUD(`⬆ Top email (1 of ${rows.length})`, true);
   }
 
   function goToBottomEmail() {
@@ -225,7 +240,7 @@
 
     const lastRow = rows[rows.length - 1];
     selectEmailRow(lastRow, true);
-    showHUD(`⬇ Selected bottom email (${rows.length} of ${rows.length})`, true);
+    showHUD(`⬇ Bottom email (${rows.length} of ${rows.length})`, true);
   }
 
   /**

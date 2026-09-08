@@ -5,7 +5,7 @@ A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard s
 Designed specifically for corporate or restricted environments:
 - **Zero intrusive permissions**: Uses only `"storage"` (to persist keybind preferences) and matches only `https://mail.google.com/*`.
 - **Go to Junk / Spam (`gj`)**: Jump directly to your Spam folder from anywhere in Gmail (complements native `gi`, `gt`, `gd`, `ga`).
-- **List Navigation (`gg` & `G`)**: Jump straight to the **first** (`gg`) or **last** (`G` / Shift+G) email on the page, shifting Gmail's actual active selection cursor.
+- **List Navigation (`gg` & `G`)**: Shift Gmail's active cursor to the **first** (`gg`) or **last** (`G` / Shift+G) email on the page without leaving the checkbox selected.
 - **List Pagination (`]]` & `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.).
 - **Strict Context Awareness**: `gg`, `G`, `]]`, and `[[` are active only in email list view, never inside open email threads.
 - **Auto-activating Snooze menu**: Detects when Gmail's Snooze menu appears and enables instant single-key actions.
@@ -23,8 +23,8 @@ Designed specifically for corporate or restricted environments:
 | Shortcut | Action | Scope |
 | :--- | :--- | :--- |
 | **`gj`** | **Go to Junk / Spam** folder | Anywhere in Gmail |
-| **`gg`** | **Jump to Top Email** (shifts Gmail selection to 1st email) | Email list view |
-| **`G`** (`Shift+g`) | **Jump to Bottom Email** (shifts Gmail selection to last email) | Email list view |
+| **`gg`** | **Jump to Top Email** (shifts Gmail cursor to 1st email, unselected) | Email list view |
+| **`G`** (`Shift+g`) | **Jump to Bottom Email** (shifts Gmail cursor to last email, unselected) | Email list view |
 | **`]]`** | **Next page** (Older emails) | Email list view |
 | **`[[`** | **Previous page** (Newer emails) | Email list view |
 
