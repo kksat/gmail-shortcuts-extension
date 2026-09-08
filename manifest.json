@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Gmail Shortcuts",
   "version": "1.1.0",
-  "description": "Fast, non-invasive keyboard shortcuts for Gmail with in-app toolbar help (snooze with b then t, w, or m).",
+  "description": "Fast, non-invasive keyboard shortcuts for Gmail (snooze with b then t, w, or m).",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
