@@ -1,9 +1,10 @@
-# Gmail Snooze Shortcuts (Chrome Extension)
+# Gmail Shortcuts (Chrome Extension)
 
-A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts for snoozing emails in Gmail.
+A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts for snoozing emails in Gmail, along with a native toolbar cheat sheet.
 
 Designed specifically for corporate or restricted environments:
 - **Zero intrusive permissions**: Runs as a minimal content script matching only `https://mail.google.com/*`.
+- **In-App Toolbar Help**: Injects a clean, subtle shortcut cheat-sheet badge directly next to Gmail's selection buttons.
 - **No background service workers**: Uses 0 MB RAM when not on Gmail.
 - **Typing-safe**: Never intercepts keystrokes while you are drafting an email, typing a search query, or interacting with inputs.
 - **Compatible with native shortcuts ON or OFF**: Automatically clicks the Snooze button if Gmail native keyboard shortcuts are disabled.
@@ -23,6 +24,16 @@ When an email is open (or selected in your inbox list):
 | **`Esc`** | Cancel |
 
 You can press `b` and then immediately press `t`, `w`, or `m` without waiting for the menu animation to finish.
+
+---
+
+## Toolbar Help Badge
+
+The extension adds a sleek pill button right next to the select checkbox in the Gmail toolbar:
+
+`⌨ Shortcuts: b → t, w, m ▾`
+
+Clicking it opens a quick cheat-sheet popover without leaving your inbox.
 
 ---
 
