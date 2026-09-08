@@ -4,7 +4,8 @@
  *
  * Features:
  *   - Auto-activates in Snooze menu (dynamic slots 1, 2, 3, unsnooze u, named t, w, m, d)
- *   - Multi-line HUD with dynamic options clearly displayed on a separate line
+ *   - Multi-line HUD with dynamic options on a separate line
+ *   - Hover-protected hint panel (never disappears while mouse is on it; clickable items)
  *   - Email list navigation: ]] for Next Page, [[ for Previous Page (only in list view)
  */
 
@@ -28,6 +29,7 @@
 
   let currentConfig = { ...DEFAULT_CONFIG };
   let isMenuOpen = false;
+  let isHudHovered = false;
 
   // State for ]] and [[ bracket sequence detection
   let lastBracketKey = null;
@@ -269,28 +271,37 @@
 
   /**
    * Build the floating HUD message with dynamic options on a separate line.
+   * Items are given data-shortcut-action attributes so they are directly clickable.
    */
   function getHUDMessage(parsed) {
     const dynamicParts = [];
     parsed.dynamicItems.forEach((item, idx) => {
       const num = idx + 1;
       const title = (item.innerText || '').split('\n')[0].trim();
-      dynamicParts.push(`<b>[${num}]</b> ${title}`);
+      dynamicParts.push(
+        `<span data-shortcut-action="dynamic-${idx}" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;"><b>[${num}]</b> ${title}</span>`
+      );
     });
 
     const actionParts = [];
     if (parsed.unsnoozeItem) {
       const uKey = (currentConfig.keyUnsnooze || 'u').toUpperCase();
-      actionParts.push(`<b>[${uKey}]</b> Unsnooze`);
+      actionParts.push(
+        `<span data-shortcut-action="unsnooze" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;"><b>[${uKey}]</b> Unsnooze</span>`
+      );
     }
     if (parsed.pickDateItem) {
       const dKey = (currentConfig.keyPickDate || 'd').toUpperCase();
-      actionParts.push(`<b>[${dKey}]</b> Pick date`);
+      actionParts.push(
+        `<span data-shortcut-action="pick-date" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;"><b>[${dKey}]</b> Pick date</span>`
+      );
     }
-    actionParts.push('<b>[Esc]</b> Cancel');
+    actionParts.push(
+      `<span data-shortcut-action="cancel" style="cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.15s;"><b>[Esc]</b> Cancel</span>`
+    );
 
     const dynamicLine = dynamicParts.length > 0
-      ? `<div style="font-size: 12px; color: #a8c7fa; font-weight: 500; margin-top: 2px;">${dynamicParts.join(' &nbsp;&bull;&nbsp; ')}</div>`
+      ? `<div style="font-size: 12px; color: #a8c7fa; font-weight: 500; margin-top: 3px;">${dynamicParts.join(' &nbsp;&bull;&nbsp; ')}</div>`
       : '';
 
     return `
@@ -303,8 +314,23 @@
     `;
   }
 
+  function scheduleHudDismiss(durationMs) {
+    clearTimeout(window.__gmail_hud_timer);
+    window.__gmail_hud_timer = setTimeout(() => {
+      if (isHudHovered) return;
+      const hud = document.getElementById('__gmail_snooze_hud');
+      if (hud) {
+        hud.style.opacity = '0';
+        setTimeout(() => {
+          if (!isHudHovered) hud.style.display = 'none';
+        }, 200);
+      }
+    }, durationMs);
+  }
+
   /**
    * Display a non-intrusive floating HUD at the bottom of the screen.
+   * Remains open indefinitely while the mouse is hovered over it.
    */
   function showHUD(text, isSuccess = false) {
     if (!currentConfig.showHUD && !isSuccess) return;
@@ -325,11 +351,63 @@
         fontSize: '13px',
         fontWeight: '500',
         color: '#ffffff',
-        boxShadow: '0 4px 14px rgba(0, 0, 0, 0.35)',
+        boxShadow: '0 4px 18px rgba(0, 0, 0, 0.45)',
         transition: 'opacity 0.2s ease',
-        pointerEvents: 'none',
+        pointerEvents: 'auto',
+        cursor: 'default',
+        userSelect: 'none',
         lineHeight: '1.4'
       });
+
+      // Style hover highlight on shortcut buttons inside HUD
+      const style = document.createElement('style');
+      style.textContent = `
+        #__gmail_snooze_hud [data-shortcut-action]:hover {
+          background-color: rgba(255, 255, 255, 0.2) !important;
+        }
+      `;
+      document.head.appendChild(style);
+
+      // Keep HUD open while mouse is focused on it
+      hud.addEventListener('mouseenter', () => {
+        isHudHovered = true;
+        clearTimeout(window.__gmail_hud_timer);
+      });
+
+      // Resume dismiss timer when mouse leaves
+      hud.addEventListener('mouseleave', () => {
+        isHudHovered = false;
+        const timeoutDuration = (currentConfig.hudTimeoutSec || 4) * 1000;
+        scheduleHudDismiss(isMenuOpen ? timeoutDuration : 1500);
+      });
+
+      // Clicking any shortcut inside the HUD activates it directly
+      hud.addEventListener('click', (e) => {
+        const target = e.target.closest('[data-shortcut-action]');
+        if (!target) return;
+
+        const actionType = target.getAttribute('data-shortcut-action');
+        const menuData = getVisibleSnoozeMenu();
+        if (!menuData) return;
+
+        const parsed = parseSnoozeMenuItems(menuData.items);
+
+        if (actionType === 'unsnooze' && parsed.unsnoozeItem) {
+          clickMenuItem(parsed.unsnoozeItem, 'Unsnooze');
+        } else if (actionType.startsWith('dynamic-')) {
+          const idx = parseInt(actionType.replace('dynamic-', ''), 10);
+          if (parsed.dynamicItems[idx]) {
+            const item = parsed.dynamicItems[idx];
+            clickMenuItem(item, item.innerText.split('\n')[0].trim());
+          }
+        } else if (actionType === 'pick-date' && parsed.pickDateItem) {
+          clickMenuItem(parsed.pickDateItem, 'Select date & time');
+        } else if (actionType === 'cancel') {
+          hideHUD(true);
+          isMenuOpen = false;
+        }
+      });
+
       document.body.appendChild(hud);
     }
 
@@ -338,23 +416,21 @@
     hud.style.opacity = '1';
     hud.style.display = 'block';
 
-    const timeoutDuration = isSuccess ? 2200 : (currentConfig.hudTimeoutSec || 4) * 1000;
-
-    clearTimeout(window.__gmail_hud_timer);
-    window.__gmail_hud_timer = setTimeout(() => {
-      hud.style.opacity = '0';
-      setTimeout(() => {
-        hud.style.display = 'none';
-      }, 200);
-    }, timeoutDuration);
+    if (!isHudHovered) {
+      const timeoutDuration = isSuccess ? 2200 : (currentConfig.hudTimeoutSec || 4) * 1000;
+      scheduleHudDismiss(timeoutDuration);
+    }
   }
 
-  function hideHUD() {
+  function hideHUD(force = false) {
+    if (isHudHovered && !force) {
+      return;
+    }
     const hud = document.getElementById('__gmail_snooze_hud');
     if (hud) {
       hud.style.opacity = '0';
       setTimeout(() => {
-        hud.style.display = 'none';
+        if (!isHudHovered || force) hud.style.display = 'none';
       }, 200);
     }
   }
@@ -492,7 +568,7 @@
     }
 
     if (key === 'escape') {
-      hideHUD();
+      hideHUD(true);
       isMenuOpen = false;
     }
   }
