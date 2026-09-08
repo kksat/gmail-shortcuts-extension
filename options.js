@@ -5,6 +5,10 @@
 'use strict';
 
 const DEFAULT_CONFIG = {
+  keyOpt1: '1',
+  keyOpt2: '2',
+  keyOpt3: '3',
+  keyUnsnooze: 'u',
   keyTomorrow: 't',
   keyNextWeek: 'w',
   keyLaterWeek: 'm',
@@ -17,6 +21,10 @@ const form = document.getElementById('options-form');
 const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
+const keyOpt1Input = document.getElementById('keyOpt1');
+const keyOpt2Input = document.getElementById('keyOpt2');
+const keyOpt3Input = document.getElementById('keyOpt3');
+const keyUnsnoozeInput = document.getElementById('keyUnsnooze');
 const keyTomorrowInput = document.getElementById('keyTomorrow');
 const keyNextWeekInput = document.getElementById('keyNextWeek');
 const keyLaterWeekInput = document.getElementById('keyLaterWeek');
@@ -25,6 +33,10 @@ const showHUDInput = document.getElementById('showHUD');
 const hudTimeoutSecInput = document.getElementById('hudTimeoutSec');
 
 const keyInputs = [
+  keyOpt1Input,
+  keyOpt2Input,
+  keyOpt3Input,
+  keyUnsnoozeInput,
   keyTomorrowInput,
   keyNextWeekInput,
   keyLaterWeekInput,
@@ -35,21 +47,17 @@ const keyInputs = [
  * Capture keypress directly when input is focused.
  */
 keyInputs.forEach((input) => {
+  if (!input) return;
   input.addEventListener('keydown', (e) => {
-    // Allow Tab to navigate
     if (e.key === 'Tab') return;
 
     e.preventDefault();
 
-    // Allow Backspace / Delete to clear optional keys
     if (e.key === 'Backspace' || e.key === 'Delete') {
-      if (input !== keyTomorrowInput) {
-        input.value = '';
-      }
+      input.value = '';
       return;
     }
 
-    // Only accept single visible characters (a-z, 0-9, etc.)
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
       input.value = e.key.toLowerCase();
     }
@@ -68,9 +76,13 @@ function restoreOptions() {
   if (!storage) return;
 
   storage.get(DEFAULT_CONFIG, (items) => {
-    keyTomorrowInput.value = items.keyTomorrow || DEFAULT_CONFIG.keyTomorrow;
-    keyNextWeekInput.value = items.keyNextWeek || DEFAULT_CONFIG.keyNextWeek;
-    keyLaterWeekInput.value = items.keyLaterWeek || DEFAULT_CONFIG.keyLaterWeek;
+    keyOpt1Input.value = items.keyOpt1 ?? DEFAULT_CONFIG.keyOpt1;
+    keyOpt2Input.value = items.keyOpt2 ?? DEFAULT_CONFIG.keyOpt2;
+    keyOpt3Input.value = items.keyOpt3 ?? DEFAULT_CONFIG.keyOpt3;
+    keyUnsnoozeInput.value = items.keyUnsnooze ?? DEFAULT_CONFIG.keyUnsnooze;
+    keyTomorrowInput.value = items.keyTomorrow ?? DEFAULT_CONFIG.keyTomorrow;
+    keyNextWeekInput.value = items.keyNextWeek ?? DEFAULT_CONFIG.keyNextWeek;
+    keyLaterWeekInput.value = items.keyLaterWeek ?? DEFAULT_CONFIG.keyLaterWeek;
     keyPickDateInput.value = items.keyPickDate ?? DEFAULT_CONFIG.keyPickDate;
     showHUDInput.checked = items.showHUD ?? DEFAULT_CONFIG.showHUD;
     hudTimeoutSecInput.value = items.hudTimeoutSec ?? DEFAULT_CONFIG.hudTimeoutSec;
@@ -83,24 +95,14 @@ function restoreOptions() {
 function saveOptions(e) {
   e.preventDefault();
 
-  // Validate duplicate action keys
-  const actionKeys = [
-    keyTomorrowInput.value.trim().toLowerCase(),
-    keyNextWeekInput.value.trim().toLowerCase(),
-    keyLaterWeekInput.value.trim().toLowerCase(),
-    keyPickDateInput.value.trim().toLowerCase()
-  ].filter(Boolean);
-
-  const uniqueKeys = new Set(actionKeys);
-  if (uniqueKeys.size !== actionKeys.length) {
-    alert('Please ensure snooze options (Tomorrow, Next week, etc.) have different keys assigned.');
-    return;
-  }
-
   const newConfig = {
-    keyTomorrow: (keyTomorrowInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyTomorrow),
-    keyNextWeek: (keyNextWeekInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyNextWeek),
-    keyLaterWeek: (keyLaterWeekInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyLaterWeek),
+    keyOpt1: keyOpt1Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt1,
+    keyOpt2: keyOpt2Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt2,
+    keyOpt3: keyOpt3Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt3,
+    keyUnsnooze: keyUnsnoozeInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyUnsnooze,
+    keyTomorrow: keyTomorrowInput.value.trim().toLowerCase(),
+    keyNextWeek: keyNextWeekInput.value.trim().toLowerCase(),
+    keyLaterWeek: keyLaterWeekInput.value.trim().toLowerCase(),
     keyPickDate: keyPickDateInput.value.trim().toLowerCase(),
     showHUD: showHUDInput.checked,
     hudTimeoutSec: Math.max(2, Math.min(10, parseInt(hudTimeoutSecInput.value, 10) || 4))

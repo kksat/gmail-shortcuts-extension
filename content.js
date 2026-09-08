@@ -2,8 +2,14 @@
  * Gmail Shortcuts
  * Fast, lightweight, and configurable keyboard shortcuts for Gmail.
  *
- * Automatically activates whenever Gmail's Snooze menu is opened
- * (via Gmail's native shortcut, button click, or context menu).
+ * Automatically activates whenever Gmail's Snooze menu is opened:
+ *   [1, 2, 3] -> Dynamic suggested time options
+ *   [u]       -> Unsnooze (if available)
+ *   [t]       -> Tomorrow
+ *   [w]       -> Next week
+ *   [m]       -> Later this week / Weekend
+ *   [d]       -> Pick date & time
+ *   [Esc]     -> Cancel
  */
 
 (function () {
@@ -14,6 +20,10 @@
   window.__gmail_shortcuts_installed = true;
 
   const DEFAULT_CONFIG = {
+    keyOpt1: '1',
+    keyOpt2: '2',
+    keyOpt3: '3',
+    keyUnsnooze: 'u',
     keyTomorrow: 't',
     keyNextWeek: 'w',
     keyLaterWeek: 'm',
@@ -42,48 +52,6 @@
         }
       });
     }
-  }
-
-  const SNOOZE_ACTIONS = {
-    tomorrow: {
-      name: 'Tomorrow',
-      patterns: [/tomorrow/i],
-      fallbackIndex: 0
-    },
-    later_this_week: {
-      name: 'Later this week',
-      patterns: [/later this week/i, /this weekend/i, /middle/i],
-      fallbackIndex: 1
-    },
-    next_week: {
-      name: 'Next week',
-      patterns: [/next week/i],
-      fallbackIndex: 2
-    },
-    pick_date: {
-      name: 'Select date & time',
-      patterns: [/select date/i, /pick date/i, /choose date/i],
-      fallbackIndex: 3
-    }
-  };
-
-  function getKeyActionMap() {
-    const map = {};
-    if (currentConfig.keyTomorrow) map[currentConfig.keyTomorrow.toLowerCase()] = 'tomorrow';
-    if (currentConfig.keyNextWeek) map[currentConfig.keyNextWeek.toLowerCase()] = 'next_week';
-    if (currentConfig.keyLaterWeek) map[currentConfig.keyLaterWeek.toLowerCase()] = 'later_this_week';
-    if (currentConfig.keyPickDate) map[currentConfig.keyPickDate.toLowerCase()] = 'pick_date';
-    return map;
-  }
-
-  function getHUDMessage() {
-    const parts = [];
-    if (currentConfig.keyTomorrow) parts.push(`<b>[${currentConfig.keyTomorrow.toUpperCase()}]</b> Tomorrow`);
-    if (currentConfig.keyNextWeek) parts.push(`<b>[${currentConfig.keyNextWeek.toUpperCase()}]</b> Next Week`);
-    if (currentConfig.keyLaterWeek) parts.push(`<b>[${currentConfig.keyLaterWeek.toUpperCase()}]</b> Later this week`);
-    if (currentConfig.keyPickDate) parts.push(`<b>[${currentConfig.keyPickDate.toUpperCase()}]</b> Pick date`);
-    parts.push('<b>[Esc]</b> Cancel');
-    return `Snooze: ${parts.join(' &nbsp;|&nbsp; ')}`;
   }
 
   /**
@@ -123,6 +91,7 @@
           text.includes('next week') ||
           text.includes('later this week') ||
           text.includes('this weekend') ||
+          text.includes('unsnooze') ||
           text.includes('select date') ||
           text.includes('pick date')
         ) {
@@ -131,6 +100,32 @@
       }
     }
     return null;
+  }
+
+  /**
+   * Categorize items in the Snooze menu into:
+   * - unsnoozeItem (if email is already snoozed)
+   * - pickDateItem (custom date & time picker)
+   * - dynamicItems (suggested time presets: Tomorrow, Next week, etc.)
+   */
+  function parseSnoozeMenuItems(items) {
+    let unsnoozeItem = null;
+    let pickDateItem = null;
+    const dynamicItems = [];
+
+    for (const item of items) {
+      const text = (item.innerText + ' ' + (item.getAttribute('aria-label') || '')).toLowerCase();
+
+      if (text.includes('unsnooze') || text.includes('un-snooze') || text.includes('вернуть во входящие') || text.includes('desposponer')) {
+        unsnoozeItem = item;
+      } else if (text.includes('select date') || text.includes('pick date') || text.includes('choose date') || text.includes('выбрать дату')) {
+        pickDateItem = item;
+      } else {
+        dynamicItems.push(item);
+      }
+    }
+
+    return { unsnoozeItem, pickDateItem, dynamicItems };
   }
 
   /**
@@ -149,52 +144,43 @@
     });
   }
 
+  function clickMenuItem(el, label) {
+    if (!el) return;
+    triggerClick(el);
+    showHUD(`✓ Snoozed: ${label}`, true);
+    isMenuOpen = false;
+  }
+
   /**
-   * Select a snooze option by action name ('tomorrow', 'next_week', etc.)
+   * Build the floating HUD message dynamically from the currently visible menu options.
    */
-  function selectOption(actionName, existingMenuData) {
-    const config = SNOOZE_ACTIONS[actionName];
-    if (!config) return;
+  function getHUDMessage(parsed) {
+    const parts = [];
 
-    const menuData = existingMenuData || getVisibleSnoozeMenu();
-    if (menuData && menuData.items.length > 0) {
-      let target = menuData.items.find(item =>
-        config.patterns.some(p => p.test(item.innerText))
-      );
-
-      if (!target && menuData.items[config.fallbackIndex]) {
-        target = menuData.items[config.fallbackIndex];
-      }
-
-      if (target) {
-        triggerClick(target);
-        showHUD(`✓ Snoozed: ${config.name}`, true);
-        isMenuOpen = false;
-        return;
-      }
+    if (parsed.unsnoozeItem) {
+      const uKey = (currentConfig.keyUnsnooze || 'u').toUpperCase();
+      parts.push(`<b>[${uKey}]</b> Unsnooze`);
     }
 
-    // Fallback: brief polling if menu is still mounting
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const m = getVisibleSnoozeMenu();
-      if (m && m.items.length > 0) {
-        clearInterval(interval);
-        let target = m.items.find(item =>
-          config.patterns.some(p => p.test(item.innerText))
-        );
-        if (!target && m.items[config.fallbackIndex]) {
-          target = m.items[config.fallbackIndex];
-        }
-        if (target) {
-          triggerClick(target);
-          showHUD(`✓ Snoozed: ${config.name}`, true);
-          isMenuOpen = false;
-        }
-      } else if (Date.now() - start > 1500) {
-        clearInterval(interval);
-      }
-    }, 25);
+    const optKeys = [
+      (currentConfig.keyOpt1 || '1').toUpperCase(),
+      (currentConfig.keyOpt2 || '2').toUpperCase(),
+      (currentConfig.keyOpt3 || '3').toUpperCase()
+    ];
+
+    parsed.dynamicItems.forEach((item, idx) => {
+      const keyLabel = optKeys[idx] || `${idx + 1}`;
+      const title = (item.innerText || '').split('\n')[0].trim();
+      parts.push(`<b>[${keyLabel}]</b> ${title}`);
+    });
+
+    if (parsed.pickDateItem) {
+      const dKey = (currentConfig.keyPickDate || 'd').toUpperCase();
+      parts.push(`<b>[${dKey}]</b> Pick date`);
+    }
+
+    parts.push('<b>[Esc]</b> Cancel');
+    return `Snooze: ${parts.join(' &nbsp;|&nbsp; ')}`;
   }
 
   /**
@@ -255,7 +241,7 @@
 
   /**
    * Main keyboard event listener.
-   * Only intercepts keys when Gmail's Snooze menu is actually open on screen.
+   * Intercepts keys only when the Snooze menu is open on screen.
    */
   function handleKeyDown(event) {
     if (isTyping(event) || event.ctrlKey || event.altKey || event.metaKey) {
@@ -266,14 +252,86 @@
     if (!menuData) return;
 
     const key = event.key.toLowerCase();
-    const actionMap = getKeyActionMap();
-    const action = actionMap[key];
+    const parsed = parseSnoozeMenuItems(menuData.items);
 
-    if (action) {
+    // 1. Unsnooze shortcut (default 'u')
+    if (key === (currentConfig.keyUnsnooze || 'u').toLowerCase()) {
       event.preventDefault();
       event.stopPropagation();
-      selectOption(action, menuData);
-    } else if (key === 'escape') {
+      if (parsed.unsnoozeItem) {
+        clickMenuItem(parsed.unsnoozeItem, 'Unsnooze');
+      } else {
+        showHUD('⚠️ Unsnooze is not available for this email');
+      }
+      return;
+    }
+
+    // 2. Dynamic options 1, 2, 3 (configurable)
+    const optMap = {
+      [(currentConfig.keyOpt1 || '1').toLowerCase()]: 0,
+      [(currentConfig.keyOpt2 || '2').toLowerCase()]: 1,
+      [(currentConfig.keyOpt3 || '3').toLowerCase()]: 2
+    };
+
+    if (optMap[key] !== undefined && parsed.dynamicItems[optMap[key]]) {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = parsed.dynamicItems[optMap[key]];
+      clickMenuItem(target, target.innerText.split('\n')[0].trim());
+      return;
+    }
+
+    // Also support direct digits 1-9 for dynamic items if not explicitly rebound
+    const digitIndex = parseInt(key, 10) - 1;
+    if (!isNaN(digitIndex) && digitIndex >= 0 && parsed.dynamicItems[digitIndex]) {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = parsed.dynamicItems[digitIndex];
+      clickMenuItem(target, target.innerText.split('\n')[0].trim());
+      return;
+    }
+
+    // 3. Named shortcuts: Tomorrow ('t'), Next week ('w'), Later this week ('m'), Pick date ('d')
+    if (key === (currentConfig.keyTomorrow || 't').toLowerCase()) {
+      const target = menuData.items.find(it => /tomorrow/i.test(it.innerText));
+      if (target) {
+        event.preventDefault();
+        event.stopPropagation();
+        clickMenuItem(target, 'Tomorrow');
+        return;
+      }
+    }
+
+    if (key === (currentConfig.keyNextWeek || 'w').toLowerCase()) {
+      const target = menuData.items.find(it => /next week/i.test(it.innerText));
+      if (target) {
+        event.preventDefault();
+        event.stopPropagation();
+        clickMenuItem(target, 'Next week');
+        return;
+      }
+    }
+
+    if (key === (currentConfig.keyLaterWeek || 'm').toLowerCase()) {
+      const target = menuData.items.find(it => /later this week|this weekend|middle/i.test(it.innerText));
+      if (target) {
+        event.preventDefault();
+        event.stopPropagation();
+        clickMenuItem(target, target.innerText.split('\n')[0].trim());
+        return;
+      }
+    }
+
+    if (key === (currentConfig.keyPickDate || 'd').toLowerCase()) {
+      if (parsed.pickDateItem) {
+        event.preventDefault();
+        event.stopPropagation();
+        clickMenuItem(parsed.pickDateItem, 'Select date & time');
+        return;
+      }
+    }
+
+    if (key === 'escape') {
       hideHUD();
       isMenuOpen = false;
     }
@@ -289,7 +347,8 @@
     if (menuData) {
       if (!isMenuOpen) {
         isMenuOpen = true;
-        showHUD(getHUDMessage());
+        const parsed = parseSnoozeMenuItems(menuData.items);
+        showHUD(getHUDMessage(parsed));
       }
     } else {
       if (isMenuOpen) {
