@@ -1,13 +1,9 @@
 /**
  * Gmail Shortcuts
- * Fast, lightweight keyboard shortcuts for Gmail.
+ * Fast, lightweight, and configurable keyboard shortcuts for Gmail.
  *
- * Shortcuts:
- *   [b] -> Open Snooze menu + HUD
- *   [t] -> Snooze until Tomorrow
- *   [w] -> Snooze until Next week
- *   [m] -> Snooze until Later this week (or This weekend)
- *   [Escape] -> Cancel
+ * Configurable via Chrome Extension Options page:
+ *   chrome://extensions -> Details -> Extension options
  */
 
 (function () {
@@ -17,26 +13,80 @@
   if (window.__gmail_shortcuts_installed) return;
   window.__gmail_shortcuts_installed = true;
 
+  const DEFAULT_CONFIG = {
+    triggerKey: 'b',
+    keyTomorrow: 't',
+    keyNextWeek: 'w',
+    keyLaterWeek: 'm',
+    keyPickDate: 'd',
+    showHUD: true,
+    hudTimeoutSec: 4
+  };
+
+  let currentConfig = { ...DEFAULT_CONFIG };
   let snoozeWaiting = false;
   let snoozeTimeout = null;
 
-  const SNOOZE_OPTIONS = {
-    t: {
+  // Load configuration from storage
+  const storage = chrome.storage?.sync || chrome.storage?.local;
+  if (storage) {
+    storage.get(DEFAULT_CONFIG, (items) => {
+      if (items) {
+        currentConfig = { ...DEFAULT_CONFIG, ...items };
+      }
+    });
+
+    // Listen for live updates from the Options page
+    if (chrome.storage?.onChanged) {
+      chrome.storage.onChanged.addListener((changes) => {
+        for (const [key, change] of Object.entries(changes)) {
+          currentConfig[key] = change.newValue;
+        }
+      });
+    }
+  }
+
+  const SNOOZE_ACTIONS = {
+    tomorrow: {
       name: 'Tomorrow',
       patterns: [/tomorrow/i],
       fallbackIndex: 0
     },
-    m: {
+    later_this_week: {
       name: 'Later this week',
       patterns: [/later this week/i, /this weekend/i, /middle/i],
       fallbackIndex: 1
     },
-    w: {
+    next_week: {
       name: 'Next week',
       patterns: [/next week/i],
       fallbackIndex: 2
+    },
+    pick_date: {
+      name: 'Select date & time',
+      patterns: [/select date/i, /pick date/i, /choose date/i],
+      fallbackIndex: 3
     }
   };
+
+  function getKeyActionMap() {
+    const map = {};
+    if (currentConfig.keyTomorrow) map[currentConfig.keyTomorrow.toLowerCase()] = 'tomorrow';
+    if (currentConfig.keyNextWeek) map[currentConfig.keyNextWeek.toLowerCase()] = 'next_week';
+    if (currentConfig.keyLaterWeek) map[currentConfig.keyLaterWeek.toLowerCase()] = 'later_this_week';
+    if (currentConfig.keyPickDate) map[currentConfig.keyPickDate.toLowerCase()] = 'pick_date';
+    return map;
+  }
+
+  function getHUDMessage() {
+    const parts = [];
+    if (currentConfig.keyTomorrow) parts.push(`<b>[${currentConfig.keyTomorrow.toUpperCase()}]</b> Tomorrow`);
+    if (currentConfig.keyNextWeek) parts.push(`<b>[${currentConfig.keyNextWeek.toUpperCase()}]</b> Next Week`);
+    if (currentConfig.keyLaterWeek) parts.push(`<b>[${currentConfig.keyLaterWeek.toUpperCase()}]</b> Later this week`);
+    if (currentConfig.keyPickDate) parts.push(`<b>[${currentConfig.keyPickDate.toUpperCase()}]</b> Pick date`);
+    parts.push('<b>[Esc]</b> Cancel');
+    return `Snooze: ${parts.join(' &nbsp;|&nbsp; ')}`;
+  }
 
   /**
    * Determine if the user is currently typing in an input field, search box, or email draft.
@@ -113,10 +163,10 @@
   }
 
   /**
-   * Select a snooze option by key ('t', 'w', 'm') once the menu appears.
+   * Select a snooze option by action name ('tomorrow', 'next_week', etc.)
    */
-  function selectOption(key) {
-    const config = SNOOZE_OPTIONS[key];
+  function selectOption(actionName) {
+    const config = SNOOZE_ACTIONS[actionName];
     if (!config) return;
 
     const start = Date.now();
@@ -147,6 +197,8 @@
    * Display a non-intrusive floating HUD at the bottom of the screen.
    */
   function showHUD(text, isSuccess = false) {
+    if (!currentConfig.showHUD && !isSuccess) return;
+
     let hud = document.getElementById('__gmail_snooze_hud');
     if (!hud) {
       hud = document.createElement('div');
@@ -176,13 +228,15 @@
     hud.style.opacity = '1';
     hud.style.display = 'block';
 
+    const timeoutDuration = isSuccess ? 2200 : (currentConfig.hudTimeoutSec || 4) * 1000;
+
     clearTimeout(window.__gmail_hud_timer);
     window.__gmail_hud_timer = setTimeout(() => {
       hud.style.opacity = '0';
       setTimeout(() => {
         hud.style.display = 'none';
       }, 200);
-    }, isSuccess ? 2200 : 4500);
+    }, timeoutDuration);
   }
 
   function hideHUD() {
@@ -205,14 +259,14 @@
     }
 
     const key = event.key.toLowerCase();
+    const triggerKey = (currentConfig.triggerKey || 'b').toLowerCase();
     const menuOpen = getVisibleSnoozeMenu() !== null;
+    const actionMap = getKeyActionMap();
 
-    // 1. User presses 'b' to snooze
-    if (key === 'b' && !snoozeWaiting && !menuOpen) {
+    // 1. User presses trigger key (default 'b')
+    if (key === triggerKey && !snoozeWaiting && !menuOpen) {
       snoozeWaiting = true;
-      showHUD(
-        'Snooze: <b>[T]</b> Tomorrow &nbsp;|&nbsp; <b>[W]</b> Next Week &nbsp;|&nbsp; <b>[M]</b> Later this week &nbsp;|&nbsp; <b>[Esc]</b> Cancel'
-      );
+      showHUD(getHUDMessage());
 
       // If Gmail's native keyboard shortcuts are disabled, click the Snooze button automatically
       setTimeout(() => {
@@ -222,20 +276,22 @@
         }
       }, 80);
 
+      const waitDuration = (currentConfig.hudTimeoutSec || 4) * 1000;
       clearTimeout(snoozeTimeout);
       snoozeTimeout = setTimeout(() => {
         snoozeWaiting = false;
-      }, 4500);
+      }, waitDuration);
       return;
     }
 
-    // 2. User presses t, w, m or Escape while snooze is active or menu is visible
+    // 2. User presses an action key or Escape while snooze is active or menu is visible
     if (snoozeWaiting || menuOpen) {
-      if (['t', 'w', 'm'].includes(key)) {
+      const action = actionMap[key];
+      if (action) {
         event.preventDefault();
         event.stopPropagation();
         snoozeWaiting = false;
-        selectOption(key);
+        selectOption(action);
       } else if (key === 'escape') {
         snoozeWaiting = false;
         hideHUD();
