@@ -1,12 +1,11 @@
 # Gmail Shortcuts (Chrome Extension)
 
-A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts to Gmail's Snooze menu.
-
-**Auto-activating:** The extension automatically detects when Gmail's Snooze menu appears (opened via Gmail's native shortcut like `b`, clicking the Snooze button, or from the right-click context menu) and enables instant single-key actions.
+A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts for email pagination and Gmail's Snooze menu.
 
 Designed specifically for corporate or restricted environments:
 - **Zero intrusive permissions**: Uses only `"storage"` (to persist keybind preferences) and matches only `https://mail.google.com/*`.
-- **Auto-activating**: Hooks directly into Gmail's native Snooze menu without interfering with your existing Gmail shortcuts.
+- **List Pagination (`]]` and `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.). Only active in list view, never inside open messages.
+- **Auto-activating Snooze menu**: Detects when Gmail's Snooze menu appears and enables instant single-key actions.
 - **Dynamic Slot Shortcuts (1, 2, 3)**: Instantly pick whichever suggested date/time presets Gmail offers (Tomorrow, Later today, Next week, etc.).
 - **Unsnooze Support (U)**: Automatically detects when an email is already snoozed and activates `U` to unsnooze.
 - **Clean & non-intrusive UI**: Only appears when the Snooze menu is open—zero permanent toolbar clutter.
@@ -15,11 +14,22 @@ Designed specifically for corporate or restricted environments:
 
 ---
 
-## Default Shortcuts
+## Shortcuts
 
-Once the Snooze menu is open on screen:
+### 1. Email List Pagination (Only in List View)
+When viewing email lists (Inbox, Sent, Snoozed, Search, Labels) and **not** inside an open email:
 
-### Dynamic Suggested Slots & Actions
+| Shortcut | Action |
+| :--- | :--- |
+| **`]]`** | **Next page** (Older emails) |
+| **`[[`** | **Previous page** (Newer emails) |
+
+---
+
+### 2. Snooze Menu (When Menu is Open)
+When Gmail's Snooze menu is open on screen:
+
+#### Dynamic Suggested Slots & Actions
 | Key | Action |
 | :--- | :--- |
 | **`1`** | Select **1st Dynamic Option** (e.g. *Tomorrow* or *Later today*) |
@@ -29,7 +39,7 @@ Once the Snooze menu is open on screen:
 | **`d`** | Open **Select Date & Time** custom picker |
 | **`Esc`** | Cancel |
 
-### Semantic / Named Fallbacks
+#### Semantic / Named Fallbacks
 You can also always press the corresponding letter directly:
 - **`t`** → Tomorrow
 - **`w`** → Next week
@@ -43,6 +53,7 @@ To customize your keyboard shortcuts or HUD behavior:
 
 1. Right-click the **Gmail Shortcuts** extension icon in your Chrome toolbar → select **Options** (or go to `chrome://extensions` → **Details** on Gmail Shortcuts → **Extension options**).
 2. Configure:
+   - **Enable `]]` and `[[` pagination shortcuts** (toggle on/off)
    - **Dynamic Option keys** (default: `1`, `2`, `3`)
    - **Unsnooze key** (default: `u`)
    - **Named shortcut keys** (`t`, `w`, `m`, `d`)

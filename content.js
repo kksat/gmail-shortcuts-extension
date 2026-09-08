@@ -2,14 +2,9 @@
  * Gmail Shortcuts
  * Fast, lightweight, and configurable keyboard shortcuts for Gmail.
  *
- * Automatically activates whenever Gmail's Snooze menu is opened:
- *   [1, 2, 3] -> Dynamic suggested time options
- *   [u]       -> Unsnooze (if available)
- *   [t]       -> Tomorrow
- *   [w]       -> Next week
- *   [m]       -> Later this week / Weekend
- *   [d]       -> Pick date & time
- *   [Esc]     -> Cancel
+ * Features:
+ *   - Auto-activates in Snooze menu (1, 2, 3 dynamic slots, u unsnooze, t, w, m, d)
+ *   - Email list navigation: ]] for Next Page, [[ for Previous Page (only in list view)
  */
 
 (function () {
@@ -28,12 +23,18 @@
     keyNextWeek: 'w',
     keyLaterWeek: 'm',
     keyPickDate: 'd',
+    enablePagination: true,
     showHUD: true,
     hudTimeoutSec: 4
   };
 
   let currentConfig = { ...DEFAULT_CONFIG };
   let isMenuOpen = false;
+
+  // State for ]] and [[ bracket sequence detection
+  let lastBracketKey = null;
+  let lastBracketTimer = null;
+  const BRACKET_TIMEOUT_MS = 500;
 
   // Load configuration from storage
   const storage = chrome.storage?.sync || chrome.storage?.local;
@@ -69,6 +70,123 @@
       el.getAttribute('role') === 'textbox' ||
       el.closest('[role="textbox"]') !== null
     );
+  }
+
+  /**
+   * Determine if the user is in the email list view (Inbox, Sent, Search, etc.)
+   * and NOT currently viewing an individual email message thread.
+   */
+  function isEmailListView() {
+    // 1. If Snooze menu is open, prioritize snooze actions
+    if (getVisibleSnoozeMenu() !== null) return false;
+
+    // 2. If 'Back to...' button is visible, an individual email thread is open
+    const backBtn = document.querySelector(
+      'div[act="19"], div[aria-label*="Back to"], div[data-tooltip*="Back to"], div[aria-label*="Назад"], div[data-tooltip*="Назад"]'
+    );
+    if (backBtn && backBtn.offsetParent !== null) {
+      return false;
+    }
+
+    // 3. Thread list container gh="tl" must be visible
+    const threadList = document.querySelector('div[gh="tl"]');
+    if (threadList && threadList.offsetParent !== null) {
+      return true;
+    }
+
+    // 4. Fallback: Table with role="grid" inside role="main"
+    const grid = document.querySelector('div[role="main"] table[role="grid"]');
+    return !!(grid && grid.offsetParent !== null);
+  }
+
+  /**
+   * Find Gmail's pagination buttons for Next Page (Older) and Prev Page (Newer).
+   */
+  function findPaginationButtons() {
+    const nextSelectors = [
+      'div[data-tooltip*="Older"]',
+      'div[aria-label*="Older"]',
+      'div[data-tooltip*="Next page"]',
+      'div[aria-label*="Next page"]',
+      'div[data-tooltip*="Next"]',
+      'div[aria-label*="Next"]',
+      'div[data-tooltip*="Раньше"]',
+      'div[aria-label*="Раньше"]',
+      'div[data-tooltip*="Ältere"]',
+      'div[data-tooltip*="Plus anciens"]',
+      'div[data-tooltip*="Más antiguos"]'
+    ];
+
+    const prevSelectors = [
+      'div[data-tooltip*="Newer"]',
+      'div[aria-label*="Newer"]',
+      'div[data-tooltip*="Previous page"]',
+      'div[aria-label*="Previous page"]',
+      'div[data-tooltip*="Previous"]',
+      'div[aria-label*="Previous"]',
+      'div[data-tooltip*="Позже"]',
+      'div[aria-label*="Позже"]',
+      'div[data-tooltip*="Neuere"]',
+      'div[data-tooltip*="Plus récents"]',
+      'div[data-tooltip*="Más recientes"]'
+    ];
+
+    let nextBtn = null;
+    let prevBtn = null;
+
+    for (const sel of nextSelectors) {
+      const el = Array.from(document.querySelectorAll(sel)).find(e => e.offsetParent !== null);
+      if (el) {
+        nextBtn = el;
+        break;
+      }
+    }
+
+    for (const sel of prevSelectors) {
+      const el = Array.from(document.querySelectorAll(sel)).find(e => e.offsetParent !== null);
+      if (el) {
+        prevBtn = el;
+        break;
+      }
+    }
+
+    return { nextBtn, prevBtn };
+  }
+
+  function isBtnDisabled(btn) {
+    if (!btn) return true;
+    if (btn.getAttribute('aria-disabled') === 'true') return true;
+    if (btn.classList.contains('J-J5-Ji-I-dis')) return true;
+    if (btn.hasAttribute('disabled')) return true;
+    return false;
+  }
+
+  function goToNextPage() {
+    const { nextBtn } = findPaginationButtons();
+    if (!nextBtn) {
+      showHUD('⚠️ Next page button not found');
+      return;
+    }
+    if (isBtnDisabled(nextBtn)) {
+      showHUD('Already on the last page');
+      return;
+    }
+    triggerClick(nextBtn);
+    showHUD('Next page →', true);
+  }
+
+  function goToPrevPage() {
+    const { prevBtn } = findPaginationButtons();
+    if (!prevBtn) {
+      showHUD('⚠️ Previous page button not found');
+      return;
+    }
+    if (isBtnDisabled(prevBtn)) {
+      showHUD('Already on the first page');
+      return;
+    }
+    triggerClick(prevBtn);
+    showHUD('← Previous page', true);
   }
 
   /**
@@ -241,17 +359,72 @@
 
   /**
    * Main keyboard event listener.
-   * Intercepts keys only when the Snooze menu is open on screen.
    */
   function handleKeyDown(event) {
     if (isTyping(event) || event.ctrlKey || event.altKey || event.metaKey) {
       return;
     }
 
+    const key = event.key.toLowerCase();
     const menuData = getVisibleSnoozeMenu();
+
+    // =======================================================================
+    // Context 1: Email List View Navigation (]] Next Page, [[ Previous Page)
+    // Only active when listing emails and NOT in an open email thread
+    // =======================================================================
+    if (!menuData && currentConfig.enablePagination && isEmailListView()) {
+      if (key === ']') {
+        if (lastBracketKey === ']') {
+          // Second ']' -> Next Page!
+          clearTimeout(lastBracketTimer);
+          lastBracketKey = null;
+          event.preventDefault();
+          event.stopPropagation();
+          goToNextPage();
+        } else {
+          // First ']' -> Start timer
+          lastBracketKey = ']';
+          event.preventDefault();
+          event.stopPropagation();
+          clearTimeout(lastBracketTimer);
+          lastBracketTimer = setTimeout(() => {
+            lastBracketKey = null;
+          }, BRACKET_TIMEOUT_MS);
+        }
+        return;
+      }
+
+      if (key === '[') {
+        if (lastBracketKey === '[') {
+          // Second '[' -> Previous Page!
+          clearTimeout(lastBracketTimer);
+          lastBracketKey = null;
+          event.preventDefault();
+          event.stopPropagation();
+          goToPrevPage();
+        } else {
+          // First '[' -> Start timer
+          lastBracketKey = '[';
+          event.preventDefault();
+          event.stopPropagation();
+          clearTimeout(lastBracketTimer);
+          lastBracketTimer = setTimeout(() => {
+            lastBracketKey = null;
+          }, BRACKET_TIMEOUT_MS);
+        }
+        return;
+      }
+
+      // Any other key clears bracket sequence
+      lastBracketKey = null;
+      clearTimeout(lastBracketTimer);
+    }
+
+    // =======================================================================
+    // Context 2: Snooze Menu Open (Dynamic 1, 2, 3, Unsnooze u, Named t, w, m, d)
+    // =======================================================================
     if (!menuData) return;
 
-    const key = event.key.toLowerCase();
     const parsed = parseSnoozeMenuItems(menuData.items);
 
     // 1. Unsnooze shortcut (default 'u')
@@ -281,7 +454,7 @@
       return;
     }
 
-    // Also support direct digits 1-9 for dynamic items if not explicitly rebound
+    // Direct digits 1-9 fallback for dynamic items
     const digitIndex = parseInt(key, 10) - 1;
     if (!isNaN(digitIndex) && digitIndex >= 0 && parsed.dynamicItems[digitIndex]) {
       event.preventDefault();

@@ -13,6 +13,7 @@ const DEFAULT_CONFIG = {
   keyNextWeek: 'w',
   keyLaterWeek: 'm',
   keyPickDate: 'd',
+  enablePagination: true,
   showHUD: true,
   hudTimeoutSec: 4
 };
@@ -21,6 +22,7 @@ const form = document.getElementById('options-form');
 const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
+const enablePaginationInput = document.getElementById('enablePagination');
 const keyOpt1Input = document.getElementById('keyOpt1');
 const keyOpt2Input = document.getElementById('keyOpt2');
 const keyOpt3Input = document.getElementById('keyOpt3');
@@ -76,6 +78,7 @@ function restoreOptions() {
   if (!storage) return;
 
   storage.get(DEFAULT_CONFIG, (items) => {
+    enablePaginationInput.checked = items.enablePagination ?? DEFAULT_CONFIG.enablePagination;
     keyOpt1Input.value = items.keyOpt1 ?? DEFAULT_CONFIG.keyOpt1;
     keyOpt2Input.value = items.keyOpt2 ?? DEFAULT_CONFIG.keyOpt2;
     keyOpt3Input.value = items.keyOpt3 ?? DEFAULT_CONFIG.keyOpt3;
@@ -96,6 +99,7 @@ function saveOptions(e) {
   e.preventDefault();
 
   const newConfig = {
+    enablePagination: enablePaginationInput.checked,
     keyOpt1: keyOpt1Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt1,
     keyOpt2: keyOpt2Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt2,
     keyOpt3: keyOpt3Input.value.trim().toLowerCase() || DEFAULT_CONFIG.keyOpt3,
