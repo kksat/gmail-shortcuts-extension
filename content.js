@@ -8,6 +8,7 @@
  *   - Hover-protected hint panel (never disappears while mouse is on it; clickable items)
  *   - Navigation:
  *       - gj: Go to Junk / Spam folder (complements native gi, gt, gd, ga)
+ *       - gu: Go to Unread emails (is:unread)
  *       - gg: Go to Top email (actual Gmail selection shifts to first email)
  *       - G: Go to Bottom email (actual Gmail selection shifts to last email)
  *       - ]]: Next page (Older emails)
@@ -30,6 +31,7 @@
     enablePagination: true,
     enableListJump: true,
     enableGoToSpam: true,
+    enableGoToUnread: true,
     showHUD: true,
     hudTimeoutSec: 4
   };
@@ -128,6 +130,29 @@
 
     if (window.location.hash !== '#spam') {
       window.location.hash = '#spam';
+    }
+  }
+
+  /**
+   * Navigate directly to Unread emails (is:unread).
+   */
+  function goToUnreadEmails() {
+    showHUD('🔍 Go to Unread emails...', true);
+
+    const searchInput = document.querySelector(
+      'input[aria-label*="Search"], input[name="q"], input[placeholder*="Search"]'
+    );
+    if (searchInput) {
+      searchInput.value = 'is:unread';
+    }
+
+    if (window.location.hash !== '#search/is:unread' && window.location.hash !== '#search/is%3Aunread') {
+      window.location.hash = '#search/is:unread';
+    } else {
+      window.location.hash = '#inbox';
+      setTimeout(() => {
+        window.location.hash = '#search/is:unread';
+      }, 50);
     }
   }
 
@@ -677,11 +702,11 @@
     const menuData = getVisibleSnoozeMenu();
 
     // =======================================================================
-    // Context: Global Navigation (g + j -> Go to Spam / Junk)
+    // Context: Global Navigation (g + j -> Spam / Junk, g + u -> Unread)
     // Works anywhere in Gmail (list view or open email)
     // =======================================================================
-    if (!menuData && currentConfig.enableGoToSpam) {
-      if (key === 'j' && !event.shiftKey) {
+    if (!menuData) {
+      if (currentConfig.enableGoToSpam && key === 'j' && !event.shiftKey) {
         const now = Date.now();
         if (lastGTime > 0 && now - lastGTime < G_TIMEOUT_MS) {
           // 'g' then 'j' detected -> Jump to Spam / Junk folder!
@@ -689,6 +714,18 @@
           event.preventDefault();
           event.stopPropagation();
           goToSpamFolder();
+          return;
+        }
+      }
+
+      if (currentConfig.enableGoToUnread && key === 'u' && !event.shiftKey) {
+        const now = Date.now();
+        if (lastGTime > 0 && now - lastGTime < G_TIMEOUT_MS) {
+          // 'g' then 'u' detected -> Jump to Unread emails!
+          lastGTime = 0;
+          event.preventDefault();
+          event.stopPropagation();
+          goToUnreadEmails();
           return;
         }
       }
@@ -775,12 +812,12 @@
             lastGTime = now;
           }
         } else if (lastGTime > 0 && event.key !== 'Shift') {
-          // Any non-g, non-j key clears the 'g' timer
+          // Any non-g, non-j, non-u key clears the 'g' timer
           lastGTime = 0;
         }
       }
     } else if (!menuData) {
-      // Outside email list view: still track first 'g' for 'gj' navigation
+      // Outside email list view: still track first 'g' for 'gj' and 'gu' navigation
       if (event.key === 'g' && !event.shiftKey) {
         lastGTime = Date.now();
       } else if (lastGTime > 0 && event.key !== 'Shift') {

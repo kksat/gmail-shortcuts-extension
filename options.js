@@ -13,6 +13,7 @@ const DEFAULT_CONFIG = {
   enablePagination: true,
   enableListJump: true,
   enableGoToSpam: true,
+  enableGoToUnread: true,
   showHUD: true,
   hudTimeoutSec: 4
 };
@@ -21,6 +22,7 @@ const form = document.getElementById('options-form');
 const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
+const enableGoToUnreadInput = document.getElementById('enableGoToUnread');
 const enableGoToSpamInput = document.getElementById('enableGoToSpam');
 const enableListJumpInput = document.getElementById('enableListJump');
 const enablePaginationInput = document.getElementById('enablePagination');
@@ -73,6 +75,7 @@ function restoreOptions() {
   if (!storage) return;
 
   storage.get(DEFAULT_CONFIG, (items) => {
+    enableGoToUnreadInput.checked = items.enableGoToUnread ?? DEFAULT_CONFIG.enableGoToUnread;
     enableGoToSpamInput.checked = items.enableGoToSpam ?? DEFAULT_CONFIG.enableGoToSpam;
     enableListJumpInput.checked = items.enableListJump ?? DEFAULT_CONFIG.enableListJump;
     enablePaginationInput.checked = items.enablePagination ?? DEFAULT_CONFIG.enablePagination;
@@ -93,6 +96,7 @@ function saveOptions(e) {
   e.preventDefault();
 
   const newConfig = {
+    enableGoToUnread: enableGoToUnreadInput.checked,
     enableGoToSpam: enableGoToSpamInput.checked,
     enableListJump: enableListJumpInput.checked,
     enablePagination: enablePaginationInput.checked,
