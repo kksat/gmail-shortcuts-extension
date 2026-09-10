@@ -184,43 +184,60 @@
   }
 
   /**
-   * Find the active email list row (hovered row, cursor row, focused row, or checked row).
+   * Find the row that holds Gmail's active keyboard cursor or selection.
    */
-  function getActiveEmailListRow() {
-    // 1. Physically hovered row right now
-    if (lastHoveredRow && lastHoveredRow.offsetParent !== null && lastHoveredRow.matches(':hover')) {
-      return lastHoveredRow;
-    }
-
-    // 2. Focused element inside an email row
+  function getSelectionCursorRow() {
+    // 1. Element with keyboard focus inside an email row
     const focusedRow = document.activeElement?.closest('tr.zA, tr[role="row"]');
     if (focusedRow && focusedRow.offsetParent !== null) {
       return focusedRow;
     }
 
-    // 3. Row with Gmail cursor (PE / PF / roving tabindex / selected)
-    const cursorRow = document.querySelector(
-      'tr.zA.PE, tr.zA.PF, tr.zA[tabindex="0"], tr.zA[aria-selected="true"], tr.x7'
-    );
-    if (cursorRow && cursorRow.offsetParent !== null) {
-      return cursorRow;
-    }
+    // 2. Gmail's native active cursor row (PE for unread, PF for read)
+    const peRow = Array.from(document.querySelectorAll('tr.zA.PE, tr.zA.PF'))
+      .find(r => r.offsetParent !== null);
+    if (peRow) return peRow;
 
-    // 4. Row with checked checkbox
-    const checkedBox = document.querySelector(
-      'tr.zA div[role="checkbox"][aria-checked="true"], tr[role="row"] div[role="checkbox"][aria-checked="true"]'
-    );
+    // 3. Checked checkbox (selected email)
+    const checkedBox = Array.from(
+      document.querySelectorAll(
+        'div[gh="tl"] tr.zA div[role="checkbox"][aria-checked="true"], table[role="grid"] tr.zA div[role="checkbox"][aria-checked="true"], tr.zA div[role="checkbox"][aria-checked="true"]'
+      )
+    ).find(cb => cb.offsetParent !== null);
     if (checkedBox) {
-      const row = checkedBox.closest('tr.zA, tr[role="row"]');
-      if (row && row.offsetParent !== null) return row;
+      const r = checkedBox.closest('tr.zA, tr[role="row"]');
+      if (r && r.offsetParent !== null) return r;
     }
 
-    // 5. Last hovered row if still valid in DOM
-    if (lastHoveredRow && lastHoveredRow.offsetParent !== null && document.contains(lastHoveredRow)) {
+    // 4. Gmail roving tabindex or aria-selected
+    const rovingRow = Array.from(
+      document.querySelectorAll('tr.zA[tabindex="0"], tr.zA[aria-selected="true"]')
+    ).find(r => r.offsetParent !== null);
+    if (rovingRow) return rovingRow;
+
+    return null;
+  }
+
+  /**
+   * Find the active email list row.
+   * Priority:
+   *   1. Keyboard cursor / checked selection (where the user navigated)
+   *   2. Mouse-hovered row (only if no active cursor exists)
+   *   3. First visible email in list
+   */
+  function getActiveEmailListRow() {
+    // Priority 1: Selection / cursor row where the user is focused
+    const selectionRow = getSelectionCursorRow();
+    if (selectionRow) {
+      return selectionRow;
+    }
+
+    // Priority 2: Fallback to mouse-hovered row only if no keyboard selection exists
+    if (lastHoveredRow && lastHoveredRow.offsetParent !== null && lastHoveredRow.matches(':hover')) {
       return lastHoveredRow;
     }
 
-    // 6. Fallback: First visible email in list
+    // Priority 3: Fallback to first visible email in list
     const rows = getEmailListRows();
     return rows.length > 0 ? rows[0] : null;
   }
