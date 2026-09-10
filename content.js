@@ -44,6 +44,19 @@
   let isMenuOpen = false;
   let isHudHovered = false;
 
+  // Track the most recently hovered email list row
+  let lastHoveredRow = null;
+  document.addEventListener(
+    'mouseover',
+    (e) => {
+      const row = e.target.closest('tr.zA, tr[role="row"]');
+      if (row && row.offsetParent !== null) {
+        lastHoveredRow = row;
+      }
+    },
+    true
+  );
+
   // State for ]] and [[ bracket sequence detection
   let lastBracketKey = null;
   let lastBracketTimer = null;
@@ -165,33 +178,49 @@
    */
   function cleanSubject(subject) {
     if (!subject) return '';
-    return subject.replace(/^((re|fwd|fw|aw|wg|antw)(\[\d+\])?:\s*)+/gi, '').trim();
+    const trimmed = subject.trim();
+    const cleaned = trimmed.replace(/^((re|fwd|fw|aw|wg|antw)(\[\d+\])?:\s*)+/gi, '').trim();
+    return cleaned || trimmed;
   }
 
   /**
-   * Find the active email list row (cursor row, focused row, checked row, or hovered row).
+   * Find the active email list row (hovered row, cursor row, focused row, or checked row).
    */
   function getActiveEmailListRow() {
-    // 1. Row with Gmail cursor (PE / PF)
-    const cursorRow = document.querySelector('tr.zA.PE, tr.zA.PF');
-    if (cursorRow && cursorRow.offsetParent !== null) return cursorRow;
+    // 1. Physically hovered row right now
+    if (lastHoveredRow && lastHoveredRow.offsetParent !== null && lastHoveredRow.matches(':hover')) {
+      return lastHoveredRow;
+    }
 
-    // 2. Focused element inside a row
-    const focusedRow = document.activeElement?.closest('tr.zA');
-    if (focusedRow && focusedRow.offsetParent !== null) return focusedRow;
+    // 2. Focused element inside an email row
+    const focusedRow = document.activeElement?.closest('tr.zA, tr[role="row"]');
+    if (focusedRow && focusedRow.offsetParent !== null) {
+      return focusedRow;
+    }
 
-    // 3. Row with checked checkbox
-    const checkedBox = document.querySelector('tr.zA div[role="checkbox"][aria-checked="true"]');
+    // 3. Row with Gmail cursor (PE / PF / roving tabindex / selected)
+    const cursorRow = document.querySelector(
+      'tr.zA.PE, tr.zA.PF, tr.zA[tabindex="0"], tr.zA[aria-selected="true"], tr.x7'
+    );
+    if (cursorRow && cursorRow.offsetParent !== null) {
+      return cursorRow;
+    }
+
+    // 4. Row with checked checkbox
+    const checkedBox = document.querySelector(
+      'tr.zA div[role="checkbox"][aria-checked="true"], tr[role="row"] div[role="checkbox"][aria-checked="true"]'
+    );
     if (checkedBox) {
-      const row = checkedBox.closest('tr.zA');
+      const row = checkedBox.closest('tr.zA, tr[role="row"]');
       if (row && row.offsetParent !== null) return row;
     }
 
-    // 4. Hovered row
-    const hoveredRow = document.querySelector('tr.zA:hover');
-    if (hoveredRow && hoveredRow.offsetParent !== null) return hoveredRow;
+    // 5. Last hovered row if still valid in DOM
+    if (lastHoveredRow && lastHoveredRow.offsetParent !== null && document.contains(lastHoveredRow)) {
+      return lastHoveredRow;
+    }
 
-    // 5. Fallback: First visible row
+    // 6. Fallback: First visible email in list
     const rows = getEmailListRows();
     return rows.length > 0 ? rows[0] : null;
   }
@@ -215,22 +244,46 @@
     const emailEl = row.querySelector('[email], [data-hovercard-id]');
     if (emailEl) {
       const email = emailEl.getAttribute('email') || emailEl.getAttribute('data-hovercard-id');
-      if (email) return email;
+      if (email && email.includes('@')) return email;
     }
 
-    const senderContainer = row.querySelector('div.yW span, td.yX span, td.yX, div.yW');
-    if (senderContainer) {
-      const name = (senderContainer.getAttribute('name') || senderContainer.innerText || '').trim();
-      if (name) return name;
+    const senderSelectors = [
+      'div.yW span[name]',
+      'div.yW span',
+      'span.bA4 span',
+      'td.yX span[name]',
+      'td.yX span',
+      'td.yX'
+    ];
+
+    for (const sel of senderSelectors) {
+      const el = row.querySelector(sel);
+      if (el) {
+        const name = (el.getAttribute('name') || el.innerText || '').trim();
+        if (name && name.length > 0) return name;
+      }
     }
 
     return null;
   }
 
   function getSubjectFromOpenEmail() {
-    const h2 = document.querySelector('div[role="main"] h2.hP, div[role="main"] h2[tabindex="-1"], h2.hP');
-    if (h2) {
-      return cleanSubject(h2.innerText);
+    const selectors = [
+      'div[role="main"] h2.hP',
+      'h2.hP',
+      'div[role="main"] h2[data-thread-perm-id]',
+      'div[role="main"] h2',
+      'h2[data-legacy-thread-id]'
+    ];
+
+    for (const sel of selectors) {
+      const h2 = document.querySelector(sel);
+      if (h2) {
+        const text = (h2.innerText || '').trim();
+        if (text) {
+          return cleanSubject(text);
+        }
+      }
     }
     return null;
   }
@@ -238,10 +291,54 @@
   function getSubjectFromListRow(row) {
     if (!row) return null;
 
-    const subjectEl = row.querySelector('span.bog, div.y6 > span:first-child, td.xY span');
-    if (subjectEl) {
-      return cleanSubject(subjectEl.innerText);
+    // Strategy 1: Targeted subject class selectors in Gmail
+    const subjectSelectors = [
+      'span.bog',
+      'span.bqe',
+      'span.bqf',
+      'div.y6 span.bog',
+      'div.y6 > span:not(.y2):not(.av):not(.ar)',
+      'td.xY span.bog',
+      'td.xY span.bqe',
+      'td.xY span.bqf'
+    ];
+
+    for (const sel of subjectSelectors) {
+      const el = row.querySelector(sel);
+      if (el) {
+        const text = el.innerText.trim();
+        if (text && text !== '-' && text.length > 0) {
+          const cleaned = cleanSubject(text);
+          if (cleaned) return cleaned;
+        }
+      }
     }
+
+    // Strategy 2: Extract from div.y6 by stripping snippets (.y2) and label badges
+    const y6 = row.querySelector('div.y6');
+    if (y6) {
+      const clone = y6.cloneNode(true);
+      clone.querySelectorAll('span.y2, div.ar, span.av, div.as, span.at').forEach(s => s.remove());
+      const text = clone.innerText.trim();
+      if (text) {
+        const cleaned = cleanSubject(text);
+        if (cleaned) return cleaned;
+      }
+    }
+
+    // Strategy 3: Extract from td.xY (subject cell) by removing snippet and label badges
+    const xyCell = row.querySelector('td.xY');
+    if (xyCell) {
+      const clone = xyCell.cloneNode(true);
+      clone.querySelectorAll('span.y2, div.ar, span.av, span.at, div.as').forEach(s => s.remove());
+      const text = clone.innerText.trim();
+      if (text) {
+        const subjectPart = text.split(/\s+-\s+/)[0].trim();
+        const cleaned = cleanSubject(subjectPart);
+        if (cleaned) return cleaned;
+      }
+    }
+
     return null;
   }
 
@@ -271,6 +368,7 @@
     );
     if (searchInput) {
       searchInput.value = query;
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
     const targetHash = '#search/' + encodeURIComponent(query);
@@ -302,8 +400,9 @@
       return;
     }
 
-    const query = `subject:"${subject}"`;
-    executeGmailSearch(query, `subject: "${subject}"`);
+    const sanitized = subject.replace(/"/g, "'");
+    const query = `subject:"${sanitized}"`;
+    executeGmailSearch(query, `subject: "${sanitized}"`);
   }
 
   /**
