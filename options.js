@@ -14,6 +14,8 @@ const DEFAULT_CONFIG = {
   enableListJump: true,
   enableGoToSpam: true,
   enableGoToUnread: true,
+  enableSearchSender: true,
+  enableSearchSubject: true,
   showHUD: true,
   hudTimeoutSec: 4
 };
@@ -22,6 +24,8 @@ const form = document.getElementById('options-form');
 const statusEl = document.getElementById('status');
 const resetBtn = document.getElementById('reset-btn');
 
+const enableSearchSenderInput = document.getElementById('enableSearchSender');
+const enableSearchSubjectInput = document.getElementById('enableSearchSubject');
 const enableGoToUnreadInput = document.getElementById('enableGoToUnread');
 const enableGoToSpamInput = document.getElementById('enableGoToSpam');
 const enableListJumpInput = document.getElementById('enableListJump');
@@ -75,6 +79,8 @@ function restoreOptions() {
   if (!storage) return;
 
   storage.get(DEFAULT_CONFIG, (items) => {
+    enableSearchSenderInput.checked = items.enableSearchSender ?? DEFAULT_CONFIG.enableSearchSender;
+    enableSearchSubjectInput.checked = items.enableSearchSubject ?? DEFAULT_CONFIG.enableSearchSubject;
     enableGoToUnreadInput.checked = items.enableGoToUnread ?? DEFAULT_CONFIG.enableGoToUnread;
     enableGoToSpamInput.checked = items.enableGoToSpam ?? DEFAULT_CONFIG.enableGoToSpam;
     enableListJumpInput.checked = items.enableListJump ?? DEFAULT_CONFIG.enableListJump;
@@ -96,6 +102,8 @@ function saveOptions(e) {
   e.preventDefault();
 
   const newConfig = {
+    enableSearchSender: enableSearchSenderInput.checked,
+    enableSearchSubject: enableSearchSubjectInput.checked,
     enableGoToUnread: enableGoToUnreadInput.checked,
     enableGoToSpam: enableGoToSpamInput.checked,
     enableListJump: enableListJumpInput.checked,

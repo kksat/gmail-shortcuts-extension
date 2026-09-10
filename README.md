@@ -1,14 +1,16 @@
 # Gmail Shortcuts (Chrome Extension)
 
-A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts for email navigation and Gmail's Snooze menu.
+A lightweight, non-invasive Chrome extension that adds lightning-fast keyboard shortcuts for email search, navigation, and Gmail's Snooze menu.
 
 Designed specifically for corporate or restricted environments:
 - **Zero intrusive permissions**: Uses only `"storage"` (to persist keybind preferences) and matches only `https://mail.google.com/*`.
+- **Search by Sender (`;`)**: Instantly find all emails from the current sender (`from:sender@domain.com`).
+- **Search by Subject (`'`)**: Instantly find all emails with the current subject (`subject:"..."`, automatically cleaning `Re:`, `Fwd:`, etc.).
 - **Go to Unread (`gu`)**: Jump directly to all unread emails (`is:unread`) from anywhere in Gmail.
 - **Go to Junk / Spam (`gj`)**: Jump directly to your Spam folder from anywhere in Gmail (complements native `gi`, `gt`, `gd`, `ga`).
 - **List Navigation (`gg` & `G`)**: Shift Gmail's active cursor to the **first** (`gg`) or **last** (`G` / Shift+G) email on the page without leaving the checkbox selected.
 - **List Pagination (`]]` & `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.).
-- **Strict Context Awareness**: `gg`, `G`, `]]`, and `[[` are active only in email list view, never inside open email threads.
+- **Strict Context Awareness**: Navigation shortcuts are active only in email list view; search shortcuts (`;` and `'`) work both in list view and inside open email threads.
 - **Auto-activating Snooze menu**: Detects when Gmail's Snooze menu appears and enables instant single-key actions.
 - **Dynamic Slot Shortcuts (1, 2, 3...)**: Instantly pick whichever suggested date/time presets Gmail offers (Tomorrow, Later today, Next week, etc.).
 - **Multi-line HUD**: Displays all static shortcuts on one line and dynamic options on their own separate line.
@@ -20,9 +22,11 @@ Designed specifically for corporate or restricted environments:
 
 ## Shortcuts
 
-### 1. Navigation Shortcuts
+### 1. Navigation & Search Shortcuts
 | Shortcut | Action | Scope |
 | :--- | :--- | :--- |
+| **`;`** | **Find all emails from sender** (`from:...`) | List view & Open email |
+| **`'`** | **Find all emails with this subject** (`subject:"..."`) | List view & Open email |
 | **`gu`** | **Go to Unread emails** (`is:unread`) | Anywhere in Gmail |
 | **`gj`** | **Go to Junk / Spam** folder | Anywhere in Gmail |
 | **`gg`** | **Jump to Top Email** (shifts Gmail cursor to 1st email, unselected) | Email list view |
@@ -67,6 +71,8 @@ To customize your keyboard shortcuts or HUD behavior:
 
 1. Right-click the **Gmail Shortcuts** extension icon in your Chrome toolbar → select **Options** (or go to `chrome://extensions` → **Details** on Gmail Shortcuts → **Extension options**).
 2. Configure:
+   - **Enable `;` shortcut** (Find all from sender)
+   - **Enable `'` shortcut** (Find all with this subject)
    - **Enable `gu` shortcut** (Go to Unread emails)
    - **Enable `gj` shortcut** (Go to Spam / Junk)
    - **Enable `gg` and `G` shortcuts** (List jumping)

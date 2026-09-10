@@ -9,6 +9,8 @@
  *   - Navigation:
  *       - gj: Go to Junk / Spam folder (complements native gi, gt, gd, ga)
  *       - gu: Go to Unread emails (is:unread)
+ *       - ; : Find all emails from sender (from:...)
+ *       - ' : Find all emails with this subject (subject:"...")
  *       - gg: Go to Top email (actual Gmail selection shifts to first email)
  *       - G: Go to Bottom email (actual Gmail selection shifts to last email)
  *       - ]]: Next page (Older emails)
@@ -32,6 +34,8 @@
     enableListJump: true,
     enableGoToSpam: true,
     enableGoToUnread: true,
+    enableSearchSender: true,
+    enableSearchSubject: true,
     showHUD: true,
     hudTimeoutSec: 4
   };
@@ -154,6 +158,152 @@
         window.location.hash = '#search/is:unread';
       }, 50);
     }
+  }
+
+  /**
+   * Clean leading prefixes (Re:, Fwd:, etc.) from subject line.
+   */
+  function cleanSubject(subject) {
+    if (!subject) return '';
+    return subject.replace(/^((re|fwd|fw|aw|wg|antw)(\[\d+\])?:\s*)+/gi, '').trim();
+  }
+
+  /**
+   * Find the active email list row (cursor row, focused row, checked row, or hovered row).
+   */
+  function getActiveEmailListRow() {
+    // 1. Row with Gmail cursor (PE / PF)
+    const cursorRow = document.querySelector('tr.zA.PE, tr.zA.PF');
+    if (cursorRow && cursorRow.offsetParent !== null) return cursorRow;
+
+    // 2. Focused element inside a row
+    const focusedRow = document.activeElement?.closest('tr.zA');
+    if (focusedRow && focusedRow.offsetParent !== null) return focusedRow;
+
+    // 3. Row with checked checkbox
+    const checkedBox = document.querySelector('tr.zA div[role="checkbox"][aria-checked="true"]');
+    if (checkedBox) {
+      const row = checkedBox.closest('tr.zA');
+      if (row && row.offsetParent !== null) return row;
+    }
+
+    // 4. Hovered row
+    const hoveredRow = document.querySelector('tr.zA:hover');
+    if (hoveredRow && hoveredRow.offsetParent !== null) return hoveredRow;
+
+    // 5. Fallback: First visible row
+    const rows = getEmailListRows();
+    return rows.length > 0 ? rows[0] : null;
+  }
+
+  function getSenderFromOpenEmail() {
+    const senderEl = document.querySelector(
+      'div[role="main"] span[email], div[role="main"] [data-hovercard-id], span.gD[email]'
+    );
+    if (senderEl) {
+      const email = senderEl.getAttribute('email') || senderEl.getAttribute('data-hovercard-id');
+      if (email) return email;
+      const name = senderEl.innerText.trim();
+      if (name) return name;
+    }
+    return null;
+  }
+
+  function getSenderFromListRow(row) {
+    if (!row) return null;
+
+    const emailEl = row.querySelector('[email], [data-hovercard-id]');
+    if (emailEl) {
+      const email = emailEl.getAttribute('email') || emailEl.getAttribute('data-hovercard-id');
+      if (email) return email;
+    }
+
+    const senderContainer = row.querySelector('div.yW span, td.yX span, td.yX, div.yW');
+    if (senderContainer) {
+      const name = (senderContainer.getAttribute('name') || senderContainer.innerText || '').trim();
+      if (name) return name;
+    }
+
+    return null;
+  }
+
+  function getSubjectFromOpenEmail() {
+    const h2 = document.querySelector('div[role="main"] h2.hP, div[role="main"] h2[tabindex="-1"], h2.hP');
+    if (h2) {
+      return cleanSubject(h2.innerText);
+    }
+    return null;
+  }
+
+  function getSubjectFromListRow(row) {
+    if (!row) return null;
+
+    const subjectEl = row.querySelector('span.bog, div.y6 > span:first-child, td.xY span');
+    if (subjectEl) {
+      return cleanSubject(subjectEl.innerText);
+    }
+    return null;
+  }
+
+  function getCurrentSender() {
+    if (isEmailListView()) {
+      const row = getActiveEmailListRow();
+      return getSenderFromListRow(row);
+    } else {
+      return getSenderFromOpenEmail();
+    }
+  }
+
+  function getCurrentSubject() {
+    if (isEmailListView()) {
+      const row = getActiveEmailListRow();
+      return getSubjectFromListRow(row);
+    } else {
+      return getSubjectFromOpenEmail();
+    }
+  }
+
+  function executeGmailSearch(query, label) {
+    showHUD(`🔍 Search: ${label || query}`, true);
+
+    const searchInput = document.querySelector(
+      'input[aria-label*="Search"], input[name="q"], input[placeholder*="Search"]'
+    );
+    if (searchInput) {
+      searchInput.value = query;
+    }
+
+    const targetHash = '#search/' + encodeURIComponent(query);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    } else {
+      window.location.hash = '#inbox';
+      setTimeout(() => {
+        window.location.hash = targetHash;
+      }, 50);
+    }
+  }
+
+  function searchBySender() {
+    const sender = getCurrentSender();
+    if (!sender) {
+      showHUD('⚠️ Could not detect sender for this email');
+      return;
+    }
+
+    const query = sender.includes('@') ? `from:(${sender})` : `from:"${sender}"`;
+    executeGmailSearch(query, `from: ${sender}`);
+  }
+
+  function searchBySubject() {
+    const subject = getCurrentSubject();
+    if (!subject) {
+      showHUD('⚠️ Could not detect subject for this email');
+      return;
+    }
+
+    const query = `subject:"${subject}"`;
+    executeGmailSearch(query, `subject: "${subject}"`);
   }
 
   /**
@@ -728,6 +878,26 @@
           goToUnreadEmails();
           return;
         }
+      }
+    }
+
+    // =======================================================================
+    // Context: Search by Sender (;) and Search by Subject (')
+    // Available in email list view and when an email is open
+    // =======================================================================
+    if (!menuData) {
+      if (currentConfig.enableSearchSender && event.key === ';') {
+        event.preventDefault();
+        event.stopPropagation();
+        searchBySender();
+        return;
+      }
+
+      if (currentConfig.enableSearchSubject && event.key === "'") {
+        event.preventDefault();
+        event.stopPropagation();
+        searchBySubject();
+        return;
       }
     }
 
