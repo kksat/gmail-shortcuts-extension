@@ -14,6 +14,8 @@ const DEFAULT_CONFIG = {
   enableListJump: true,
   enableGoToSpam: true,
   enableGoToUnread: true,
+  enableGoToNav: true,
+  enableNativeShortcuts: true,
   enableSearchSender: true,
   enableSearchSubject: true,
   showHUD: true,
@@ -28,6 +30,8 @@ const enableSearchSenderInput = document.getElementById('enableSearchSender');
 const enableSearchSubjectInput = document.getElementById('enableSearchSubject');
 const enableGoToUnreadInput = document.getElementById('enableGoToUnread');
 const enableGoToSpamInput = document.getElementById('enableGoToSpam');
+const enableGoToNavInput = document.getElementById('enableGoToNav');
+const enableNativeShortcutsInput = document.getElementById('enableNativeShortcuts');
 const enableListJumpInput = document.getElementById('enableListJump');
 const enablePaginationInput = document.getElementById('enablePagination');
 const keyUnsnoozeInput = document.getElementById('keyUnsnooze');
@@ -83,6 +87,8 @@ function restoreOptions() {
     enableSearchSubjectInput.checked = items.enableSearchSubject ?? DEFAULT_CONFIG.enableSearchSubject;
     enableGoToUnreadInput.checked = items.enableGoToUnread ?? DEFAULT_CONFIG.enableGoToUnread;
     enableGoToSpamInput.checked = items.enableGoToSpam ?? DEFAULT_CONFIG.enableGoToSpam;
+    enableGoToNavInput.checked = items.enableGoToNav ?? DEFAULT_CONFIG.enableGoToNav;
+    enableNativeShortcutsInput.checked = items.enableNativeShortcuts ?? DEFAULT_CONFIG.enableNativeShortcuts;
     enableListJumpInput.checked = items.enableListJump ?? DEFAULT_CONFIG.enableListJump;
     enablePaginationInput.checked = items.enablePagination ?? DEFAULT_CONFIG.enablePagination;
     keyUnsnoozeInput.value = items.keyUnsnooze ?? DEFAULT_CONFIG.keyUnsnooze;
@@ -106,6 +112,8 @@ function saveOptions(e) {
     enableSearchSubject: enableSearchSubjectInput.checked,
     enableGoToUnread: enableGoToUnreadInput.checked,
     enableGoToSpam: enableGoToSpamInput.checked,
+    enableGoToNav: enableGoToNavInput.checked,
+    enableNativeShortcuts: enableNativeShortcutsInput.checked,
     enableListJump: enableListJumpInput.checked,
     enablePagination: enablePaginationInput.checked,
     keyUnsnooze: keyUnsnoozeInput.value.trim().toLowerCase() || DEFAULT_CONFIG.keyUnsnooze,

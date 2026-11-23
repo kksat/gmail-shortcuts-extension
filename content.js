@@ -6,9 +6,33 @@
  *   - Auto-activates in Snooze menu (dynamic slots 1, 2, 3..., unsnooze u, named t, w, m, d)
  *   - Multi-line HUD with dynamic options on a separate line
  *   - Hover-protected hint panel (never disappears while mouse is on it; clickable items)
+ *   - Native Gmail shortcut equivalents (work even when Gmail's own keyboard
+ *     shortcuts are disabled in Gmail settings):
+ *       - gi, gs, gb, gt, gd, ga: Go to Inbox, Starred, Snoozed, Sent, Drafts, All Mail
+ *       - gp, gn: Go to previous / next page
+ *       - c: Compose; d: Compose in tab (best effort)
+ *       - /: Focus search; z: Undo; ?: Shortcut help
+ *       - j, k: Move cursor down / up; x: Select; s: Toggle star
+ *       - e, y: Archive; #: Delete; !: Report spam
+ *       - I, U: Mark as read / unread
+ *       - u: Back to threadlist
+ *       - b: Open Snooze menu; m: Mute; T: Add to Tasks
+ *       - .: More actions menu; v: Move to menu; l: Label menu
+ *       - *a, *n, *r, *u, *s, *t: Select all / none / read / unread / starred / unstarred
+ *       - r, a, f: Reply / Reply all / Forward (in open thread)
+ *       - ; (expand all) and : (collapse all) in open threads — ';' only when
+ *         the "search by sender" shortcut is disabled in options
+ *       - o: Open conversation (best effort — Gmail may require a real click)
+ *       - ,: Move focus to toolbar; gc: Open Contacts
+ *     Not implemented (require trusted events or Gmail-internal dialogs):
+ *       q, R, A, F, N, p, n, _, +/-, `, ~, gl, gk, ], [, }, {
+ *
  *   - Navigation:
  *       - gj: Go to Junk / Spam folder (complements native gi, gt, gd, ga)
  *       - gu: Go to Unread emails (is:unread)
+ *       - gi, gs, gt, gd, ga: Go to Inbox, Starred, Sent, Drafts, All Mail
+ *         (native equivalents — work even when Gmail's own keyboard
+ *         shortcuts are disabled in Gmail settings)
  *       - ; : Find all emails from sender (from:...)
  *       - ' : Find all emails with this subject (subject:"...")
  *       - gg: Go to Top email (actual Gmail selection shifts to first email)
@@ -34,6 +58,8 @@
     enableListJump: true,
     enableGoToSpam: true,
     enableGoToUnread: true,
+    enableGoToNav: true,
+    enableNativeShortcuts: true,
     enableSearchSender: true,
     enableSearchSubject: true,
     showHUD: true,
@@ -65,6 +91,13 @@
   // State for g sequences (gg -> top, gj -> spam)
   let lastGTime = 0;
   const G_TIMEOUT_MS = 500;
+
+  // State for the native '*' select sequences (*a, *n, *r, *u, *s, *t)
+  let lastStarTime = 0;
+  const STAR_SEQ_TIMEOUT_MS = 500;
+
+  // Extension-managed list cursor for native j / k navigation
+  let cursorRow = null;
 
   // Load configuration from storage
   const storage = chrome.storage?.sync || chrome.storage?.local;
@@ -127,6 +160,491 @@
     // 4. Fallback: Table with role="grid" inside role="main"
     const grid = document.querySelector('div[role="main"] table[role="grid"]');
     return !!(grid && grid.offsetParent !== null);
+  }
+
+  /**
+   * Native go-to equivalents, implemented via hash navigation so they work
+   * even when Gmail's own keyboard shortcuts are disabled in Gmail settings.
+   */
+  const GO_TO_NAV_TARGETS = {
+    i: { hash: '#inbox', label: 'Inbox' },
+    s: { hash: '#starred', label: 'Starred' },
+    b: { hash: '#snoozed', label: 'Snoozed' },
+    t: { hash: '#sent', label: 'Sent' },
+    d: { hash: '#drafts', label: 'Drafts' },
+    a: { hash: '#all', label: 'All Mail' },
+    c: { hash: null, label: 'Contacts', url: 'https://contacts.google.com/' }
+  };
+
+  function goToMailbox(target, labelOverride) {
+    const label = labelOverride || target.label;
+    if (target.url) {
+      showHUD(`📂 Go to ${label}...`, true);
+      window.open(target.url, '_blank');
+      return;
+    }
+    showHUD(`📂 Go to ${label}...`, true);
+    if (window.location.hash !== target.hash) {
+      window.location.hash = target.hash;
+    }
+  }
+
+  // =======================================================================
+  // Native Gmail shortcut equivalents
+  // (implemented via DOM interaction so they work even when Gmail's own
+  //  keyboard shortcuts are disabled in Gmail settings)
+  // =======================================================================
+
+  /**
+   * Brief visual pulse so the user sees which row the cursor is on.
+   */
+  function pulseRow(row) {
+    if (!row) return;
+    const origOutline = row.style.outline;
+    const origTransition = row.style.transition;
+    row.style.transition = 'outline 0.15s ease';
+    row.style.outline = '2px solid #1a73e8';
+    row.style.outlineOffset = '-2px';
+    setTimeout(() => {
+      row.style.outline = origOutline;
+      row.style.transition = origTransition;
+    }, 700);
+  }
+
+  /**
+   * Current extension-managed cursor row (falls back to Gmail's own cursor
+   * or the first row when the extension cursor is stale).
+   */
+  function getCursorRow() {
+    if (cursorRow && cursorRow.isConnected && cursorRow.offsetParent !== null) {
+      return cursorRow;
+    }
+    const gmailCursor = getSelectionCursorRow();
+    if (gmailCursor) {
+      cursorRow = gmailCursor;
+      return cursorRow;
+    }
+    const rows = getEmailListRows();
+    cursorRow = rows.length > 0 ? rows[0] : null;
+    return cursorRow;
+  }
+
+  /**
+   * Native j / k: move the cursor one row down / up.
+   */
+  function moveCursor(delta) {
+    const rows = getEmailListRows();
+    if (rows.length === 0) {
+      showHUD('⚠️ No conversations in this list');
+      return;
+    }
+    let idx = rows.indexOf(cursorRow);
+    if (idx === -1) idx = 0;
+    idx = Math.max(0, Math.min(rows.length - 1, idx + delta));
+    cursorRow = rows[idx];
+    cursorRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    cursorRow.setAttribute('tabindex', '0');
+    cursorRow.focus({ preventScroll: true });
+    pulseRow(cursorRow);
+  }
+
+  /**
+   * Find a button in Gmail's main toolbar by its language-independent act code.
+   */
+  function findToolbarButton(actCode) {
+    return (
+      Array.from(document.querySelectorAll(`div[gh="tm"] div[act="${actCode}"]`)).find(
+        (b) => b.offsetParent !== null
+      ) || null
+    );
+  }
+
+  /**
+   * Run a toolbar action (archive, delete, spam, mark read/unread...).
+   * If no conversation is checked, the cursor row is selected first,
+   * mirroring how native Gmail shortcuts act on the cursor conversation.
+   */
+  function runToolbarAction(actCode, label, autoSelect = true) {
+    const btn = findToolbarButton(actCode);
+    if (!btn) {
+      showHUD(`⚠️ ${label} is not available here`);
+      return;
+    }
+
+    let autoChecked = null;
+    const anyChecked = document.querySelector(
+      'tr.zA div[role="checkbox"][aria-checked="true"]'
+    );
+    if (autoSelect && !anyChecked) {
+      const row = getCursorRow();
+      if (!row) {
+        showHUD('⚠️ No conversation selected');
+        return;
+      }
+      const cb = row.querySelector('div[role="checkbox"]');
+      if (cb) {
+        triggerClick(cb);
+        autoChecked = cb;
+      }
+    }
+
+    const doAction = () => {
+      const b = findToolbarButton(actCode) || btn;
+      if (b) {
+        triggerClick(b);
+        showHUD(`✓ ${label}`, true);
+      }
+      // Restore the selection state we introduced (for actions that keep
+      // the row in the list, e.g. mark as read/unread).
+      if (autoChecked) {
+        setTimeout(() => {
+          if (autoChecked.isConnected && autoChecked.getAttribute('aria-checked') === 'true') {
+            triggerClick(autoChecked);
+          }
+        }, 450);
+      }
+    };
+
+    if (autoChecked) {
+      setTimeout(doAction, 100);
+    } else {
+      doAction();
+    }
+  }
+
+  /**
+   * Open one of Gmail's toolbar menus (More actions, Move to, Labels...)
+   * and optionally activate a menu item identified by localized text.
+   */
+  function openToolbarMenu(buttonRegex, itemRegex, label) {
+    const btn = Array.from(document.querySelectorAll('div[gh="tm"] [aria-label]')).find(
+      (e) => e.offsetParent !== null && buttonRegex.test(e.getAttribute('aria-label') || '')
+    );
+    if (!btn) {
+      showHUD(`⚠️ ${label} is not available here`);
+      return;
+    }
+    // Deferred so the menu is not immediately closed by Gmail's own
+    // keydown handling while our keydown event is still propagating.
+    setTimeout(() => triggerClick(btn), 30);
+
+    if (!itemRegex) return;
+
+    setTimeout(() => {
+      const item = Array.from(
+        document.querySelectorAll('div[role="menu"] [role="menuitem"]')
+      ).find((m) => m.offsetParent !== null && itemRegex.test((m.innerText || '').trim()));
+      if (item) {
+        clickClosureMenuItem(item);
+        showHUD(`✓ ${label}`, true);
+      } else {
+        showHUD(`⚠️ ${label} option not found`);
+      }
+    }, 300);
+  }
+
+  /**
+   * Activate a Google Closure menu item (Gmail dropdown menus). These items
+   * only respond to clicks on their inner content div (.J-N-Jz) that carry
+   * real coordinates and a click count.
+   */
+  function clickClosureMenuItem(item) {
+    const inner = item.querySelector('.J-N-Jz') || item;
+    const rect = inner.getBoundingClientRect();
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.x + rect.width / 2,
+      clientY: rect.y + rect.height / 2,
+      button: 0,
+      detail: 1
+    };
+    ['mouseover', 'mouseenter', 'mousemove', 'mousedown', 'mouseup', 'click'].forEach((t) =>
+      inner.dispatchEvent(new MouseEvent(t, opts))
+    );
+  }
+
+  /**
+   * Native * sequences: *a, *n, *r, *u, *s, *t — select conversations
+   * via Gmail's select dropdown menu.
+   */
+  function selectByCriterion(criterionRegex, label) {
+    const btn = Array.from(
+      document.querySelectorAll('div[gh="tm"] [aria-haspopup="true"]')
+    ).find(
+      (e) =>
+        e.offsetParent !== null && /Выбрать|^Select/i.test(e.getAttribute('aria-label') || '')
+    );
+    if (!btn) {
+      showHUD('⚠️ Select menu is not available here');
+      return;
+    }
+    // The dropdown opens from the caret next to the select-all checkbox,
+    // not from the main button (which toggles select-all). Deferred so the
+    // menu is not immediately closed by Gmail's own keydown handling.
+    const caret = btn.querySelector('div.G-asx') || btn;
+    setTimeout(() => plainClick(caret), 30);
+    setTimeout(() => {
+      const items = Array.from(
+        document.querySelectorAll('div[role="menu"] [role="menuitem"]')
+      ).filter((m) => m.offsetParent !== null);
+      const item = items.find((m) =>
+        criterionRegex.test((m.innerText || '').split('\n')[0].trim())
+      );
+      if (item) {
+        clickClosureMenuItem(item);
+        showHUD(`✓ Selected: ${label}`, true);
+      } else {
+        showHUD(`⚠️ Select option "${label}" not found`);
+      }
+    }, 300);
+  }
+
+  /**
+   * Native z: undo the last action via Gmail's undo toast link.
+   */
+  function undoLastAction() {
+    const link = Array.from(
+      document.querySelectorAll('span, a, div[role="button"]')
+    ).find(
+      (e) =>
+        e.offsetParent !== null &&
+        e.children.length === 0 &&
+        /^(Отменить|Undo)$/i.test((e.textContent || '').trim())
+    );
+    if (link) {
+      triggerClick(link);
+      showHUD('↩ Undo', true);
+    } else {
+      showHUD('⚠️ Nothing to undo');
+    }
+  }
+
+  /**
+   * Native /: focus the search box.
+   */
+  function focusSearchBox() {
+    const input = document.querySelector(
+      'input[name="q"], input[aria-label*="Поиск"], input[aria-label*="Search"]'
+    );
+    if (input) {
+      input.focus();
+      input.select?.();
+    }
+  }
+
+  /**
+   * Native c: compose a new message.
+   * The compose button ignores synthetic clicks on hardened Gmail builds,
+   * so compose is opened via Gmail's compose URL (requires a reload).
+   */
+  function composeNew() {
+    showHUD('✉️ Compose...', true);
+    const base = window.location.href.split('#')[0];
+    window.location.href = base + '#inbox?compose=new';
+    window.location.reload();
+  }
+
+  /**
+   * Native d: compose in a new tab via Gmail's compose URL.
+   */
+  function composeInTab() {
+    showHUD('✉️ Compose in new tab...', true);
+    const base = window.location.href.split('#')[0];
+    window.open(base + '#inbox?compose=new', '_blank');
+  }
+
+  /**
+   * Native u: back to the thread list (from an open thread or search view).
+   */
+  function backToThreadList() {
+    const back = Array.from(
+      document.querySelectorAll(
+        'div[act="19"], [aria-label*="Назад"], [aria-label*="Back to"], [data-tooltip*="Назад"]'
+      )
+    ).find((e) => e.offsetParent !== null);
+    if (back) {
+      triggerClick(back);
+      return;
+    }
+    // In a list view: leave search results / labels and return to the inbox
+    if (/^#(search|label)/.test(window.location.hash)) {
+      window.location.hash = '#inbox';
+    }
+  }
+
+  /**
+   * Native x: toggle selection of the cursor row.
+   */
+  function toggleSelectCursorRow() {
+    const row = getCursorRow();
+    if (!row) return;
+    const cb = row.querySelector('div[role="checkbox"]');
+    if (cb) {
+      triggerClick(cb);
+    }
+  }
+
+  /**
+   * Native s: toggle star on the cursor row.
+   */
+  function toggleStarCursorRow() {
+    const row = getCursorRow();
+    if (!row) return;
+    const star = Array.from(row.querySelectorAll('span[role="button"]')).find((e) =>
+      /помечен|starred/i.test(e.getAttribute('aria-label') || '')
+    );
+    if (star) {
+      triggerClick(star);
+    }
+  }
+
+  /**
+   * Native o: open the conversation under the cursor (best effort —
+   * some Gmail builds ignore synthetic clicks on list rows).
+   */
+  function openCursorRow() {
+    const row = getCursorRow();
+    if (!row) return;
+    const link = row.querySelector('div[role="link"]');
+    const target = link || row;
+    const rect = target.getBoundingClientRect();
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.x + 40,
+      clientY: rect.y + rect.height / 2,
+      button: 0,
+      detail: 1
+    };
+    ['mouseover', 'mousedown', 'mouseup', 'click'].forEach((t) =>
+      target.dispatchEvent(new MouseEvent(t, opts))
+    );
+  }
+
+  /**
+   * Native b: open the Snooze menu for the cursor row (the extension's
+   * snooze HUD then takes over). Best effort: reveal the row's hover
+   * actions and click the snooze button.
+   */
+  function openSnoozeOnCursorRow() {
+    const row = getCursorRow();
+    if (!row) return;
+    const rect = row.getBoundingClientRect();
+    row.dispatchEvent(
+      new MouseEvent('mouseover', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        clientX: rect.x + rect.width / 2,
+        clientY: rect.y + 10
+      })
+    );
+    setTimeout(() => {
+      const btn = Array.from(row.querySelectorAll('[aria-label], [data-tooltip]')).find(
+        (e) =>
+          e.offsetParent !== null &&
+          /Отложить|Snooze/i.test(
+            (e.getAttribute('aria-label') || '') + (e.getAttribute('data-tooltip') || '')
+          )
+      );
+      if (btn) {
+        triggerClick(btn);
+      } else {
+        // Fall back to the snooze item in the More actions menu
+        openToolbarMenu(/Другие действия|^More/i, /Отложить|^Snooze/i, 'Snooze');
+      }
+    }, 400);
+  }
+
+  /**
+   * Native r / a / f: click the Reply / Reply all / Forward button of the
+   * last message in an open thread.
+   */
+  function clickThreadActionButton(regex, label) {
+    const btns = Array.from(
+      document.querySelectorAll('div[role="main"] [aria-label], div[role="main"] [data-tooltip]')
+    ).filter((e) =>
+      e.offsetParent !== null &&
+      regex.test(e.getAttribute('aria-label') || e.getAttribute('data-tooltip') || '')
+    );
+    if (btns.length === 0) {
+      showHUD(`⚠️ ${label} is not available here`);
+      return;
+    }
+    triggerClick(btns[btns.length - 1]);
+  }
+
+  /**
+   * Native ; / : in an open thread: expand / collapse all messages.
+   */
+  function expandCollapseAll(expand) {
+    const regex = expand ? /Развернуть все|Expand all/i : /Свернуть все|Collapse all/i;
+    const btn = Array.from(document.querySelectorAll('[aria-label], [data-tooltip]')).find(
+      (e) => e.offsetParent !== null && regex.test(e.getAttribute('aria-label') || e.getAttribute('data-tooltip') || '')
+    );
+    if (btn) {
+      triggerClick(btn);
+    } else {
+      showHUD('⚠️ Not available here');
+    }
+  }
+
+  /**
+   * Native ,: move keyboard focus to the toolbar.
+   */
+  function focusToolbar() {
+    const btn = document.querySelector('div[gh="tm"] div[act], div[gh="tm"] [role="button"]');
+    if (btn) {
+      btn.setAttribute('tabindex', '0');
+      btn.focus({ preventScroll: true });
+    }
+  }
+
+  /**
+   * Native ?: show a HUD listing the available shortcuts.
+   */
+  function showShortcutHelp() {
+    const line = (keys, text) =>
+      `<div style="text-align:left;"><b>${keys}</b> &nbsp;${text}</div>`;
+    const help = `
+      <div style="display:flex; flex-direction:column; gap:2px; max-height:300px; overflow:auto;">
+        ${line('gj / gu / gi / gs / gb / gt / gd / ga', 'Go to Spam / Unread / Inbox / Starred / Snoozed / Sent / Drafts / All Mail')}
+        ${line('gg / G', 'Top / bottom email')}
+        ${line(']] / [[', 'Next / previous page')}
+        ${line('gp / gn', 'Previous / next page')}
+        ${line('j / k', 'Move cursor down / up')}
+        ${line('o', 'Open conversation')}
+        ${line('x', 'Select conversation')}
+        ${line('s', 'Toggle star')}
+        ${line('e / y', 'Archive')}
+        ${line('#', 'Delete')}
+        ${line('!', 'Report spam')}
+        ${line('I / U', 'Mark read / unread')}
+        ${line('m', 'Mute')}
+        ${line('T', 'Add to Tasks')}
+        ${line('b', 'Snooze')}
+        ${line('.', 'More actions')}
+        ${line('v / l', 'Move to / Label menu')}
+        ${line('*a *n *r *u *s *t', 'Select all / none / read / unread / starred / unstarred')}
+        ${line('r / a / f', 'Reply / Reply all / Forward')}
+        ${line('; / :', 'Expand / collapse all (in thread)')}
+        ${line('u', 'Back to thread list')}
+        ${line('c / d', 'Compose / Compose in tab')}
+        ${line('/', 'Search')}
+        ${line('z', 'Undo')}
+        ${line(',', 'Focus toolbar')}
+        ${line('; / \'', 'Find all from sender / subject (extension)')}
+        ${line('Esc', 'Close menus')}
+      </div>`;
+    showHUD(help);
+    const hud = document.getElementById('__gmail_snooze_hud');
+    if (hud) {
+      clearTimeout(window.__gmail_hud_timer);
+      scheduleHudDismiss(Math.max(15000, (currentConfig.hudTimeoutSec || 4) * 3000));
+    }
   }
 
   /**
@@ -549,7 +1067,11 @@
       'div[aria-label*="Раньше"]',
       'div[data-tooltip*="Ältere"]',
       'div[data-tooltip*="Plus anciens"]',
-      'div[data-tooltip*="Más antiguos"]'
+      'div[data-tooltip*="Más antiguos"]',
+      'div[data-tooltip*="Следующие результаты"]',
+      'div[aria-label*="Следующие результаты"]',
+      'div[data-tooltip*="След."]',
+      'div[aria-label*="След."]'
     ];
 
     const prevSelectors = [
@@ -563,7 +1085,11 @@
       'div[aria-label*="Позже"]',
       'div[data-tooltip*="Neuere"]',
       'div[data-tooltip*="Plus récents"]',
-      'div[data-tooltip*="Más recientes"]'
+      'div[data-tooltip*="Más recientes"]',
+      'div[data-tooltip*="Предыдущие результаты"]',
+      'div[aria-label*="Предыдущие результаты"]',
+      'div[data-tooltip*="Пред."]',
+      'div[aria-label*="Пред."]'
     ];
 
     let nextBtn = null;
@@ -736,6 +1262,24 @@
   function triggerClick(el) {
     if (!el) return;
     ['mouseenter', 'mousedown', 'mouseup', 'click'].forEach(evtType => {
+      el.dispatchEvent(
+        new MouseEvent(evtType, {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        })
+      );
+    });
+  }
+
+  /**
+   * Minimal click without the mouseenter hover event — needed for Gmail's
+   * dropdown carets (select menu, compose menu), which misbehave when a
+   * synthetic mouseenter precedes the click.
+   */
+  function plainClick(el) {
+    if (!el) return;
+    ['mousedown', 'mouseup', 'click'].forEach(evtType => {
       el.dispatchEvent(
         new MouseEvent(evtType, {
           bubbles: true,
@@ -933,7 +1477,17 @@
     }
 
     hud.style.background = isSuccess ? '#137333' : '#202124';
-    hud.innerHTML = text;
+    try {
+      hud.innerHTML = text;
+    } catch (err) {
+      // Trusted Types fallback: if the page enforces
+      // "require-trusted-types-for 'script'", render plain text instead
+      // of failing the whole shortcut.
+      hud.textContent = text
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&bull;/g, '•');
+    }
     hud.style.opacity = '1';
     hud.style.display = 'block';
 
@@ -992,6 +1546,40 @@
           event.preventDefault();
           event.stopPropagation();
           goToUnreadEmails();
+          return;
+        }
+      }
+
+      // Native go-to equivalents: gi (Inbox), gs (Starred), gb (Snoozed),
+      // gt (Sent), gd (Drafts), ga (All Mail), gc (Contacts).
+      // Implemented by the extension so they keep working when Gmail
+      // keyboard shortcuts are disabled in settings.
+      if (currentConfig.enableGoToNav && !event.shiftKey) {
+        const navTarget = GO_TO_NAV_TARGETS[key];
+        if (navTarget) {
+          const now = Date.now();
+          if (lastGTime > 0 && now - lastGTime < G_TIMEOUT_MS) {
+            lastGTime = 0;
+            event.preventDefault();
+            event.stopPropagation();
+            goToMailbox(navTarget);
+            return;
+          }
+        }
+      }
+
+      // gp / gn: previous / next page (native equivalents)
+      if (currentConfig.enableNativeShortcuts && !event.shiftKey && (key === 'p' || key === 'n')) {
+        const now = Date.now();
+        if (lastGTime > 0 && now - lastGTime < G_TIMEOUT_MS) {
+          lastGTime = 0;
+          event.preventDefault();
+          event.stopPropagation();
+          if (key === 'n') {
+            goToNextPage();
+          } else {
+            goToPrevPage();
+          }
           return;
         }
       }
@@ -1108,6 +1696,219 @@
         lastGTime = Date.now();
       } else if (lastGTime > 0 && event.key !== 'Shift') {
         lastGTime = 0;
+      }
+    }
+
+    // =======================================================================
+    // Context 1.5: Native Gmail shortcut equivalents
+    // (implemented via DOM interaction so they work even when Gmail's own
+    //  keyboard shortcuts are disabled in Gmail settings)
+    // =======================================================================
+    if (!menuData && currentConfig.enableNativeShortcuts) {
+      const now = Date.now();
+      const rawKey = event.key;
+      const consume = () => {
+        event.preventDefault();
+        event.stopPropagation();
+      };
+
+      // --- '*' prefix sequences: *a, *n, *r, *u, *s, *t (list view) ---
+      if (rawKey === '*') {
+        lastStarTime = now;
+        consume();
+        return;
+      }
+      if (
+        isEmailListView() &&
+        !event.shiftKey &&
+        key.length === 1 &&
+        'anrust'.includes(key) &&
+        lastStarTime > 0 &&
+        now - lastStarTime < STAR_SEQ_TIMEOUT_MS
+      ) {
+        lastStarTime = 0;
+        const criteria = {
+          a: [/^(Все|All)$/i, 'All'],
+          n: [/^(Ни одного|Ни одно|Ничего|None)$/i, 'None'],
+          r: [/^(Прочитанные|Read)$/i, 'Read'],
+          u: [/^(Непрочитанные|Unread)$/i, 'Unread'],
+          s: [/^(Помеченные|Starred)$/i, 'Starred'],
+          t: [/^(Без пометок|Без пометки|Unstarred)$/i, 'Unstarred']
+        }[key];
+        if (criteria) {
+          consume();
+          selectByCriterion(criteria[0], criteria[1]);
+          return;
+        }
+      }
+      if (lastStarTime > 0 && rawKey !== '*') {
+        lastStarTime = 0;
+      }
+
+      // --- Global shortcuts (any context) ---
+      if (rawKey === '?') {
+        consume();
+        showShortcutHelp();
+        return;
+      }
+      if (key === 'c' && !event.shiftKey) {
+        consume();
+        composeNew();
+        return;
+      }
+      if (key === 'd' && !event.shiftKey) {
+        consume();
+        composeInTab();
+        return;
+      }
+      if (rawKey === '/') {
+        consume();
+        focusSearchBox();
+        return;
+      }
+      if (key === 'z' && !event.shiftKey) {
+        consume();
+        undoLastAction();
+        return;
+      }
+      if (rawKey === ',') {
+        consume();
+        focusToolbar();
+        return;
+      }
+      if (key === 'u' && !event.shiftKey) {
+        consume();
+        backToThreadList();
+        return;
+      }
+      if (key === 'e' && !event.shiftKey) {
+        consume();
+        if (isEmailListView()) {
+          runToolbarAction('7', 'Archive');
+        } else {
+          runToolbarAction('7', 'Archive', false);
+        }
+        return;
+      }
+      if (rawKey === '#') {
+        consume();
+        if (isEmailListView()) {
+          runToolbarAction('10', 'Delete');
+        } else {
+          runToolbarAction('10', 'Delete', false);
+        }
+        return;
+      }
+      if (rawKey === '!') {
+        consume();
+        if (isEmailListView()) {
+          runToolbarAction('9', 'Report spam');
+        } else {
+          runToolbarAction('9', 'Report spam', false);
+        }
+        return;
+      }
+
+      // --- List view shortcuts ---
+      if (isEmailListView()) {
+        if (key === 'j' && !event.shiftKey) {
+          consume();
+          moveCursor(1);
+          return;
+        }
+        if (key === 'k' && !event.shiftKey) {
+          consume();
+          moveCursor(-1);
+          return;
+        }
+        if (key === 'o' && !event.shiftKey) {
+          consume();
+          openCursorRow();
+          return;
+        }
+        if (key === 'x' && !event.shiftKey) {
+          consume();
+          toggleSelectCursorRow();
+          return;
+        }
+        if (key === 's' && !event.shiftKey) {
+          consume();
+          toggleStarCursorRow();
+          return;
+        }
+        if (key === 'y' && !event.shiftKey) {
+          consume();
+          runToolbarAction('7', 'Archive');
+          return;
+        }
+        if (rawKey === 'I') {
+          consume();
+          runToolbarAction('1', 'Mark as read');
+          return;
+        }
+        if (rawKey === 'U') {
+          consume();
+          runToolbarAction('2', 'Mark as unread');
+          return;
+        }
+        if (key === 'm' && !event.shiftKey) {
+          consume();
+          openToolbarMenu(/Другие действия|^More/i, /Игнорировать|^Mute/i, 'Mute');
+          return;
+        }
+        if (rawKey === 'T') {
+          consume();
+          openToolbarMenu(/Другие действия|^More/i, /Задачи|Tasks/i, 'Add to Tasks');
+          return;
+        }
+        if (key === 'b' && !event.shiftKey) {
+          consume();
+          openSnoozeOnCursorRow();
+          return;
+        }
+        if (rawKey === '.') {
+          consume();
+          openToolbarMenu(/Другие действия|^More/i, null, 'More actions');
+          return;
+        }
+        if (key === 'v' && !event.shiftKey) {
+          consume();
+          openToolbarMenu(/Переместить в|^Move to/i, null, 'Move to');
+          return;
+        }
+        if (key === 'l' && !event.shiftKey) {
+          consume();
+          openToolbarMenu(/Другие действия|^More/i, /Присвоить ярлык|^Label/i, 'Labels');
+          return;
+        }
+      } else {
+        // --- Open thread shortcuts ---
+        if (key === 'r' && !event.shiftKey) {
+          consume();
+          clickThreadActionButton(/^(Ответить|Reply)$/i, 'Reply');
+          return;
+        }
+        if (key === 'a' && !event.shiftKey) {
+          consume();
+          clickThreadActionButton(/^(Ответить всем|Reply all)$/i, 'Reply all');
+          return;
+        }
+        if (key === 'f' && !event.shiftKey) {
+          consume();
+          clickThreadActionButton(/^(Переслать|Forward)$/i, 'Forward');
+          return;
+        }
+        // ';' only reaches here when the search-by-sender shortcut is disabled
+        if (rawKey === ';') {
+          consume();
+          expandCollapseAll(true);
+          return;
+        }
+        if (rawKey === ':') {
+          consume();
+          expandCollapseAll(false);
+          return;
+        }
       }
     }
 

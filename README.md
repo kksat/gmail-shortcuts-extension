@@ -7,7 +7,9 @@ Designed specifically for corporate or restricted environments:
 - **Search by Sender (`;`)**: Instantly find all emails from the current sender (`from:sender@domain.com`).
 - **Search by Subject (`'`)**: Instantly find all emails with the current subject (`subject:"..."`, automatically cleaning `Re:`, `Fwd:`, etc.).
 - **Go to Unread (`gu`)**: Jump directly to all unread emails (`is:unread`) from anywhere in Gmail.
-- **Go to Junk / Spam (`gj`)**: Jump directly to your Spam folder from anywhere in Gmail (complements native `gi`, `gt`, `gd`, `ga`).
+- **Go to Junk / Spam (`gj`)**: Jump directly to your Spam folder from anywhere in Gmail.
+- **Go to Folders (`gi`, `gs`, `gb`, `gt`, `gd`, `ga`, `gc`)**: Jump to Inbox, Starred, Snoozed, Sent, Drafts, All Mail, or Contacts — native equivalents implemented by the extension, so they keep working even when Gmail's own keyboard shortcuts are disabled in Gmail settings.
+- **Native Gmail Shortcuts**: `j`/`k`/`x`/`s`/`e`/`#`/`!`/`I`/`U`/`m`/`T`/`b`/`o`/`.`/`v`/`l`/`r`/`a`/`f`/`u`/`c`/`d`/`/`/`z`/`,`/`?`/`gp`/`gn` and the `*`-selection sequences — the full set of Gmail defaults, working regardless of the Gmail keyboard shortcuts setting.
 - **List Navigation (`gg` & `G`)**: Shift Gmail's active cursor to the **first** (`gg`) or **last** (`G` / Shift+G) email on the page without leaving the checkbox selected.
 - **List Pagination (`]]` & `[[`)**: Jump to Next / Previous page when viewing email lists (Inbox, Sent, Search, etc.).
 - **Strict Context Awareness**: Navigation shortcuts are active only in email list view; search shortcuts (`;` and `'`) work both in list view and inside open email threads.
@@ -29,6 +31,11 @@ Designed specifically for corporate or restricted environments:
 | **`'`** | **Find all emails with this subject** (`subject:"..."`) | List view & Open email |
 | **`gu`** | **Go to Unread emails** (`is:unread`) | Anywhere in Gmail |
 | **`gj`** | **Go to Junk / Spam** folder | Anywhere in Gmail |
+| **`gi`** | **Go to Inbox** | Anywhere in Gmail |
+| **`gs`** | **Go to Starred** | Anywhere in Gmail |
+| **`gt`** | **Go to Sent** | Anywhere in Gmail |
+| **`gd`** | **Go to Drafts** | Anywhere in Gmail |
+| **`ga`** | **Go to All Mail** | Anywhere in Gmail |
 | **`gg`** | **Jump to Top Email** (shifts Gmail cursor to 1st email, unselected) | Email list view |
 | **`G`** (`Shift+g`) | **Jump to Bottom Email** (shifts Gmail cursor to last email, unselected) | Email list view |
 | **`]]`** | **Next page** (Older emails) | Email list view |
@@ -36,7 +43,47 @@ Designed specifically for corporate or restricted environments:
 
 ---
 
-### 2. Snooze Menu (When Menu is Open)
+### 2. Native Gmail Shortcuts (extension-implemented)
+
+These replicate Gmail's default shortcuts and **work even when Gmail's own keyboard shortcuts are disabled in Gmail settings**:
+
+| Shortcut | Action | Scope |
+| :--- | :--- | :--- |
+| **`j` / `k`** | Move cursor to next / previous conversation | Email list view |
+| **`o`** | Open conversation (best effort) | Email list view |
+| **`x`** | Select conversation | Email list view |
+| **`s`** | Toggle star (best effort) | Email list view |
+| **`e` / `y`** | Archive | List view & open thread |
+| **`#`** | Delete | List view & open thread |
+| **`!`** | Report as spam | List view & open thread |
+| **`I` / `U`** | Mark as read / unread | Email list view |
+| **`m`** | Mute conversation | Email list view |
+| **`T`** | Add conversation to Tasks | Email list view |
+| **`b`** | Open Snooze menu (best effort) | Email list view |
+| **`.`** | Open 'more actions' menu | Email list view |
+| **`v`** | Open 'move to' menu | Email list view |
+| **`l`** | Open 'label as' menu | Email list view |
+| **`r` / `a` / `f`** | Reply / Reply all / Forward | Open thread |
+| **`;` / `:`** | Expand all / Collapse all (only when the `;` search shortcut is disabled in options) | Open thread |
+| **`u`** | Back to thread list | Anywhere |
+| **`c`** | Compose (via Gmail's compose URL — briefly reloads the page) | Anywhere |
+| **`d`** | Compose in a tab (opens Gmail's compose URL in a new tab) | Anywhere |
+| **`/`** | Search email | Anywhere |
+| **`z`** | Undo | Anywhere |
+| **`,`** | Move focus to toolbar | Anywhere |
+| **`?`** | Show shortcut help | Anywhere |
+| **`gp` / `gn`** | Go to previous / next page (best effort) | Email list view |
+| **`gc`** | Go to Contacts | Anywhere |
+| **`*a` `*n` `*r` `*u` `*s` `*t`** | Select all / none / read / unread / starred / unstarred | Email list view |
+
+Notes:
+
+- Some Gmail builds harden row controls and pagination buttons against synthetic (extension-generated) clicks. On such builds `s`, `o`, `b`, `gp`/`gn`, and `]]`/`[[` are best effort, and `c`/`d` fall back to Gmail's compose URL.
+- `;` (expand all) only works when the "search by sender" shortcut is disabled in options.
+
+Not implemented (they require trusted input events or Gmail-internal dialogs): `q`, `R`/`A`/`F` (new-window variants), `N`, `p`/`n` (per-message navigation), `_`, `+`/`-` (importance), `` ` ``/`~`, `gl`, `gk`, and `]`/`[`/`}`/`{` (the extension uses `]]`/`[[` for pagination instead).
+
+### 3. Snooze Menu (When Menu is Open)
 When Gmail's Snooze menu is open on screen, the HUD shows:
 
 ```text
@@ -75,6 +122,8 @@ To customize your keyboard shortcuts or HUD behavior:
    - **Enable `'` shortcut** (Find all with this subject)
    - **Enable `gu` shortcut** (Go to Unread emails)
    - **Enable `gj` shortcut** (Go to Spam / Junk)
+   - **Enable `gi`, `gs`, `gt`, `gd`, `ga` shortcuts** (Go to folders; work with Gmail keyboard shortcuts off)
+   - **Enable native Gmail shortcuts** (j, k, x, s, e, #, !, I, U, m, T, b, o, ., v, l, r, a, f, c, d, /, z, u, ?, gp, gn, *a...)
    - **Enable `gg` and `G` shortcuts** (List jumping)
    - **Enable `]]` and `[[` pagination shortcuts**
    - **Unsnooze key** (default: `u`)
