@@ -1,0 +1,6 @@
+[tools]
+# No runtime needed — packaging only uses shell tools.
+
+[tasks.build]
+description = "Build the Chrome Web Store zip package into dist/"
+run = "./scripts/package.sh"
