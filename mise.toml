@@ -1,6 +1,10 @@
 [tools]
 # No runtime needed — packaging only uses shell tools.
 
+[tasks.check]
+description = "Verify extension code makes no network requests (privacy pre-flight)"
+run = "./scripts/check-no-network.sh"
+
 [tasks.build]
 description = "Build the Chrome Web Store zip package into dist/"
 run = "./scripts/package.sh"
