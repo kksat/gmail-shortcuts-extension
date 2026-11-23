@@ -13,7 +13,7 @@
 ---
 
 ### 2. Permissions & Data Storage
-- **`https://mail.google.com/*`**: Required solely to inject the shortcut listener into Gmail so you can use keyboard shortcuts for snoozing and pagination. The extension does not read, parse, or store the contents of your emails.
+- **`https://mail.google.com/*`**: Required solely to inject the shortcut listener into Gmail so you can use keyboard shortcuts for search, navigation, snoozing, and pagination. To support the "search by sender" (`;`) and "search by subject" (`'`) shortcuts, the Extension reads the sender address and subject line of the email you are currently viewing, purely in memory and only for the duration needed to construct the corresponding Gmail search query. This information is never stored, logged, or transmitted anywhere. The Extension does not read, parse, or store the body contents of your emails.
 - **`storage`**: Used exclusively through Chrome's native storage API (`chrome.storage.sync` / `chrome.storage.local`) to persist your local user preferences (custom shortcut keybindings, HUD timeout, and toggle settings).
 
 ---
