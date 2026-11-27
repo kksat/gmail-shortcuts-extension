@@ -1,2 +1,3 @@
 # Build output
 dist/
+.DS_Store
