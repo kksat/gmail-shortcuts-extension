@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Gmail Shortcuts",
+  "name": "Shortcuts for Gmail: Snooze, Search & Navigate",
   "version": "1.0.0",
-  "description": "Fast, non-invasive keyboard shortcuts for Gmail Snooze (auto-activates when Snooze menu opens).",
+  "description": "One-key Gmail snooze, search by sender or subject, jump to unread — extra shortcuts that stay out of your way.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
